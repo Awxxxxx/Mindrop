@@ -1,6 +1,6 @@
-const ARK_ENDPOINT = process.env.ARK_ENDPOINT || "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
-const ARK_API_KEY = process.env.ARK_API_KEY;
-const ARK_MODEL = process.env.ARK_MODEL;
+const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://ark.cn-beijing.volces.com/api/coding";
+const ANTHROPIC_AUTH_TOKEN = process.env.ANTHROPIC_AUTH_TOKEN || process.env.ARK_API_KEY;
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || process.env.ARK_MODEL || "ark-code-latest";
 
 const SYSTEM_PROMPT = `
 你是“念落 Mindrop”的内容理解与收纳助手。你必须根据用户输入完成场景分类、结构化提取和回复生成。
@@ -46,7 +46,7 @@ export default async function handler(request, response) {
     return;
   }
 
-  if (!ARK_API_KEY || !ARK_MODEL) {
+  if (!ANTHROPIC_AUTH_TOKEN || !ANTHROPIC_MODEL) {
     response.status(500).json({ error: "AI service is not configured" });
     return;
   }
@@ -58,18 +58,20 @@ export default async function handler(request, response) {
   }
 
   try {
-    const arkResponse = await fetch(ARK_ENDPOINT, {
+    const modelResponse = await fetch(anthropicMessagesURL(), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${ARK_API_KEY}`,
+        "anthropic-version": "2023-06-01",
+        "x-api-key": ANTHROPIC_AUTH_TOKEN,
+        Authorization: `Bearer ${ANTHROPIC_AUTH_TOKEN}`,
       },
       body: JSON.stringify({
-        model: ARK_MODEL,
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1600,
         temperature: 0.2,
-        response_format: { type: "json_object" },
+        system: SYSTEM_PROMPT,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
           {
             role: "user",
             content: JSON.stringify({
@@ -82,14 +84,14 @@ export default async function handler(request, response) {
       }),
     });
 
-    const raw = await arkResponse.text();
-    if (!arkResponse.ok) {
-      response.status(arkResponse.status).json({ error: "Model request failed" });
+    const raw = await modelResponse.text();
+    if (!modelResponse.ok) {
+      response.status(modelResponse.status).json({ error: "Model request failed" });
       return;
     }
 
     const completion = JSON.parse(raw);
-    const content = completion?.choices?.[0]?.message?.content;
+    const content = extractAnthropicText(completion);
     const result = normalizeResult(parseModelJSON(content), text.trim());
     response.status(200).json(result);
   } catch (error) {
@@ -101,6 +103,24 @@ function setCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function anthropicMessagesURL() {
+  const baseURL = ANTHROPIC_BASE_URL.replace(/\/+$/, "");
+  return `${baseURL}/v1/messages`;
+}
+
+function extractAnthropicText(completion) {
+  if (typeof completion?.content === "string") {
+    return completion.content;
+  }
+  if (Array.isArray(completion?.content)) {
+    return completion.content
+      .filter((item) => item?.type === "text" && typeof item.text === "string")
+      .map((item) => item.text)
+      .join("");
+  }
+  return "";
 }
 
 function parseModelJSON(content) {
