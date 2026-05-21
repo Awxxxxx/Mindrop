@@ -86,7 +86,10 @@ export default async function handler(request, response) {
 
     const raw = await modelResponse.text();
     if (!modelResponse.ok) {
-      response.status(modelResponse.status).json({ error: "Model request failed" });
+      response.status(modelResponse.status).json({
+        error: "Model request failed",
+        detail: safeErrorDetail(raw),
+      });
       return;
     }
 
@@ -103,6 +106,13 @@ function setCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function safeErrorDetail(raw) {
+  if (typeof raw !== "string" || raw.length === 0) {
+    return "";
+  }
+  return raw.slice(0, 600).replace(/ark-[A-Za-z0-9-]+/g, "[redacted]");
 }
 
 function anthropicMessagesURL() {
