@@ -1,4 +1,4 @@
-const ARK_ENDPOINT = process.env.ARK_ENDPOINT || "https://ark.cn-beijing.volces.com/api/plan/v3";
+const ARK_ENDPOINT = process.env.ARK_ENDPOINT || "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 const ARK_API_KEY = process.env.ARK_API_KEY;
 const ARK_MODEL = process.env.ARK_MODEL;
 
