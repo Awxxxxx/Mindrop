@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="念落笔记，接住你每一个想法。用 AI 对话整理待办、账单、问答和灵感。" />
+    <title>念落笔记 | 接住你每一个想法</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <canvas id="ambientCanvas" aria-hidden="true"></canvas>
+    <div class="texture" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="念落笔记首页">
+        <span class="brand-mark"><img src="./icon.png" alt="" /></span>
+        <span>念落笔记</span>
+      </a>
+      <div class="download-entry">
+        <button type="button" aria-label="下载念落笔记">下载 App</button>
+        <div class="qr-popover" role="img" aria-label="App 下载二维码占位">
+          <div class="qr-placeholder">
+            <span></span><span></span><span></span><span></span>
+            <i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <strong>扫码下载</strong>
+          <p>二维码位置预留<br />上线前替换为真实地址</p>
+        </div>
+      </div>
+    </header>
+
+    <nav class="timeline-nav" aria-label="页面时间轴导航">
+      <a class="active" href="#abilities"><span></span><b>核心能力</b></a>
+      <a href="#motion"><span></span><b>动态交互</b></a>
+      <a href="#flow"><span></span><b>工作流</b></a>
+    </nav>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy reveal">
+          <p class="eyebrow">AI Thought Companion</p>
+          <h1 class="hero-title"><span>你的</span><span>每一个想法</span><span>都很重要。</span></h1>
+          <p class="lead">
+            念落笔记是一个对话式 AI 记录入口。你只管把想法说出来，
+            它会自动整理成待办、账单、问答和灵感，让碎片真正留下来。
+          </p>
+          <div class="hero-actions">
+            <a class="primary magnetic" href="#motion">查看交互演示</a>
+            <a class="secondary" href="#abilities">了解核心能力</a>
+          </div>
+          <div class="metric-strip" aria-label="产品特性">
+            <span><b data-count="4">0</b> 类 AI 分类</span>
+            <span><b data-count="7">0</b> 天回收保护</span>
+            <span><b data-count="100">0</b> 条近期对话</span>
+          </div>
+        </div>
+
+        <div class="hero-stage reveal" data-delay="120">
+          <div class="screenshot-stack" aria-label="念落笔记真实 App 界面截图">
+            <figure class="shot-card is-back" data-kicker="数据复盘" data-title="云端同步" data-bubble-position="bubble-right-top">
+              <img src="./1.png" alt="念落笔记个人数据统计页" />
+            </figure>
+            <figure class="shot-card is-mid" data-kicker="便签沉淀" data-title="自动分类" data-bubble-position="bubble-right-middle">
+              <img src="./3.png" alt="念落笔记账单记录与自动分类历史页" />
+            </figure>
+            <figure class="shot-card is-front" data-kicker="语音输入" data-title="便捷记录" data-bubble-position="bubble-left-middle">
+              <img src="./6.png" alt="念落笔记对话输入和语音输入界面" />
+            </figure>
+          </div>
+          <div class="orbit-card hero-bubble bubble-left-middle" aria-live="polite">
+            <strong>语音输入，便捷记录</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="abilities" class="section abilities">
+        <div class="section-head reveal">
+          <p class="eyebrow">Core Abilities</p>
+          <h2>不是多一个备忘录，而是少一次整理负担。</h2>
+        </div>
+        <div class="ability-grid">
+          <article class="ability-card reveal">
+            <span class="ability-icon todo"></span>
+            <h3>待办提醒</h3>
+            <p>从自然语言里识别时间和事项，生成提醒记录，并可继续更新已有待办。</p>
+          </article>
+          <article class="ability-card reveal" data-delay="80">
+            <span class="ability-icon bill"></span>
+            <h3>账单记录</h3>
+            <p>一句话记消费，AI 自动提取金额与消费类型，让支出统计自然发生。</p>
+          </article>
+          <article class="ability-card reveal" data-delay="160">
+            <span class="ability-icon qa"></span>
+            <h3>知识问答</h3>
+            <p>把临时问题和 AI 回答沉淀下来，后续能作为可回看的知识片段。</p>
+          </article>
+          <article class="ability-card reveal" data-delay="240">
+            <span class="ability-icon idea"></span>
+            <h3>灵感沉淀</h3>
+            <p>捕捉那些一闪而过的想法，自动生成短标题，放进历史流里长期保存。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="motion" class="section motion-lab">
+        <div class="section-head reveal">
+          <p class="eyebrow">In-App Interactions</p>
+          <h2>从输入到沉淀，每一步都有轻盈反馈。</h2>
+        </div>
+        <div class="lab-layout">
+          <div class="demo-switch reveal">
+            <button class="demo-tab active" data-demo="voice">语音输入</button>
+            <button class="demo-tab" data-demo="chat">对话记录</button>
+            <button class="demo-tab" data-demo="bill">账单历史</button>
+            <button class="demo-tab" data-demo="swipe">侧滑管理</button>
+            <button class="demo-tab" data-demo="todo">待办提醒</button>
+            <button class="demo-tab" data-demo="stats">个人数据</button>
+          </div>
+          <div class="demo-canvas real-demo reveal" data-delay="120">
+            <figure class="product-shot active" data-screen="voice">
+              <img src="./6.png" alt="念落笔记语音输入浮层截图" />
+              <figcaption><b>语音输入</b><span>输入浮层在对话流上方弹出，强调“说出想法”的低阻力体验。</span></figcaption>
+            </figure>
+            <figure class="product-shot" data-screen="chat">
+              <img src="./2.png" alt="念落笔记对话记录截图" />
+              <figcaption><b>对话记录</b><span>AI 将用户输入沉淀为知识问答、待办提醒和账单记录。</span></figcaption>
+            </figure>
+            <figure class="product-shot" data-screen="bill">
+              <img src="./3.png" alt="念落笔记账单历史截图" />
+              <figcaption><b>账单历史</b><span>账单分类、金额和时间过滤都集中在历史页里完成。</span></figcaption>
+            </figure>
+            <figure class="product-shot" data-screen="swipe">
+              <img src="./4.png" alt="念落笔记历史记录侧滑交互截图" />
+              <figcaption><b>侧滑管理</b><span>历史卡片支持侧滑置顶和删除，贴近移动端直觉操作。</span></figcaption>
+            </figure>
+            <figure class="product-shot" data-screen="todo">
+              <img src="./5.png" alt="念落笔记待办提醒截图" />
+              <figcaption><b>待办提醒</b><span>自然语言中的时间会被识别并收纳到待办提醒板块。</span></figcaption>
+            </figure>
+            <figure class="product-shot" data-screen="stats">
+              <img src="./1.png" alt="念落笔记个人数据截图" />
+              <figcaption><b>个人数据</b><span>对话次数、资金支出和类型分布帮助用户复盘记录结构。</span></figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="flow" class="section flow">
+        <div class="section-head reveal">
+          <p class="eyebrow">Workflow</p>
+          <h2>一个想法，从输入到沉淀的 4 秒钟。</h2>
+        </div>
+        <div class="flow-rail" aria-label="念落笔记工作流">
+          <article class="flow-step reveal">
+            <span>01</span>
+            <h3>输入</h3>
+            <p>文字或语音，把脑子里的内容先丢出来。</p>
+          </article>
+          <article class="flow-step reveal" data-delay="80">
+            <span>02</span>
+            <h3>分析</h3>
+            <p>AI 结合上下文判断类型、标题和结构字段。</p>
+          </article>
+          <article class="flow-step reveal" data-delay="160">
+            <span>03</span>
+            <h3>入库</h3>
+            <p>生成记录，进入历史，并支持置顶、删除和回收。</p>
+          </article>
+          <article class="flow-step reveal" data-delay="240">
+            <span>04</span>
+            <h3>复盘</h3>
+            <p>在个人数据里看到对话次数、支出和类型分布。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section closing reveal">
+        <p class="eyebrow">念落笔记</p>
+        <h2>接住你每一个想法。</h2>
+        <p>把灵感、待办、消费和问题，都交给一个更轻的 AI 记录入口。</p>
+        <a class="primary magnetic" href="#top">回到顶部</a>
+      </section>
+    </main>
+
+    <script src="./main.js"></script>
+  </body>
+</html>
