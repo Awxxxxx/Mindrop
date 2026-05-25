@@ -1,0 +1,7 @@
+Mindrop/
+Mindrop.xcodeproj/
+mindrop-wireframes/
+*.png
+!website/**/*.png
+*.xcworkspace
+.vscode/

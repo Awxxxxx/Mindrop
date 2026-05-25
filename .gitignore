@@ -1,0 +1,10 @@
+.DS_Store
+Build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.vercel
+.env
+.env.*
+!.env.example
+.env*.local

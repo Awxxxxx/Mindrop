@@ -1,0 +1,30 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/website/index.html"
+    },
+    {
+      "source": "/styles.css",
+      "destination": "/website/styles.css"
+    },
+    {
+      "source": "/main.js",
+      "destination": "/website/main.js"
+    },
+    {
+      "source": "/favicon.ico",
+      "destination": "/website/favicon.ico"
+    },
+    {
+      "source": "/assets/:path*",
+      "destination": "/website/assets/:path*"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "* * * * *"
+    }
+  ]
+}
