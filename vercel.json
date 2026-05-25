@@ -5,6 +5,14 @@
       "destination": "/website/index.html"
     },
     {
+      "source": "/privacy",
+      "destination": "/website/privacy.html"
+    },
+    {
+      "source": "/privacy.html",
+      "destination": "/website/privacy.html"
+    },
+    {
       "source": "/styles.css",
       "destination": "/website/styles.css"
     },

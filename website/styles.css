@@ -215,6 +215,19 @@ img {
   background: var(--dark);
 }
 
+.legal-top-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 252, 244, 0.5);
+  font-family: ui-sans-serif, "PingFang SC", sans-serif;
+  font-weight: 760;
+}
+
 .qr-popover {
   position: absolute;
   top: calc(100% + 14px);
@@ -1175,6 +1188,87 @@ h3 {
   margin-bottom: 28px;
 }
 
+.legal-page .topbar {
+  position: absolute;
+}
+
+.legal-shell {
+  width: min(920px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 142px 0 88px;
+}
+
+.legal-document {
+  padding: clamp(28px, 5vw, 56px);
+  border: 1px solid rgba(255, 252, 244, 0.78);
+  border-radius: 36px;
+  background: rgba(255, 252, 244, 0.72);
+  box-shadow: 0 24px 72px rgba(49, 55, 52, 0.11);
+  backdrop-filter: blur(18px);
+}
+
+.legal-document h1 {
+  margin-bottom: 10px;
+  font-size: clamp(44px, 7vw, 76px);
+  letter-spacing: -0.045em;
+}
+
+.legal-meta {
+  margin-bottom: 28px;
+  color: var(--ink-3);
+  font-family: ui-sans-serif, "PingFang SC", sans-serif;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.legal-intro {
+  margin-bottom: 34px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 18px;
+  line-height: 1.9;
+}
+
+.legal-section {
+  padding: 26px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.legal-section h2 {
+  margin-bottom: 14px;
+  font-size: clamp(25px, 3vw, 34px);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+
+.legal-section p,
+.legal-section li {
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.legal-section p {
+  margin-bottom: 12px;
+}
+
+.legal-section p:last-child {
+  margin-bottom: 0;
+}
+
+.legal-section ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 1.2em;
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(34px);
@@ -1363,9 +1457,24 @@ h3 {
     display: none;
   }
 
+  .legal-top-link {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+  }
+
   .hero,
   .section {
     width: min(100% - 28px, 1160px);
+  }
+
+  .legal-shell {
+    width: min(100% - 28px, 920px);
+    padding-top: 112px;
+  }
+
+  .legal-document {
+    border-radius: 28px;
   }
 
   .hero {

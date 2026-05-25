@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="念落笔记隐私政策，说明应用如何处理对话、便签、云端同步、提醒推送、账单识别、语音输入和飞书 Bot 连接等相关信息。" />
+    <title>隐私政策 | 念落笔记</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/assets/favicon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="legal-page">
+    <canvas id="ambientCanvas" aria-hidden="true"></canvas>
+    <div class="texture" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="念落笔记首页">
+        <span class="brand-mark"><img src="/assets/icon.png" alt="" /></span>
+        <span>念落笔记</span>
+      </a>
+      <a class="legal-top-link" href="/">返回首页</a>
+    </header>
+
+    <main class="legal-shell">
+      <article class="legal-document reveal visible">
+        <p class="eyebrow">Privacy Policy</p>
+        <h1>隐私政策</h1>
+        <p class="legal-meta">生效日期：2026年5月25日</p>
+        <p class="legal-intro">
+          念落重视你的个人信息和内容安全。本政策说明我们在提供对话收纳、便签整理、云端同步、提醒推送、账单识别、语音输入、个人数据统计和飞书 Bot 连接等功能时，如何处理相关信息。
+        </p>
+
+        <section class="legal-section">
+          <h2>我们处理的信息</h2>
+          <ul>
+            <li>账号与个人资料：你设置的昵称、用户 ID、头像等基础资料。</li>
+            <li>你主动输入或同步的内容：对话文本、飞书单聊消息、便签标题与正文、分类、提醒时间、账单金额和账单类型。</li>
+            <li>同步与提醒信息：记录的创建、更新时间、删除时间、回收站状态、云端同步状态、设备推送 token、推送环境和提醒发送状态。</li>
+            <li>飞书连接信息：当你主动配对飞书 Bot 时，我们会处理你提交的 App ID、App Secret、Verification Token、Encrypt Key、飞书 open_id、事件 ID 和绑定状态。敏感配置不会以明文写入聊天记录。</li>
+            <li>语音输入信息：当你使用语音输入时，应用会请求麦克风和语音识别权限，并接收系统语音识别返回的文字结果。</li>
+            <li>设备与权限状态：通知权限、麦克风权限、语音识别权限、系统外观设置等，用于判断相关功能是否可用。</li>
+          </ul>
+        </section>
+
+        <section class="legal-section">
+          <h2>处理目的</h2>
+          <p>我们处理上述信息，是为了完成你主动发起的记录、归类、提醒、编辑、删除、恢复、搜索、跨设备同步和数据展示等操作。</p>
+          <p>对话内容会用于生成回复、识别待办/问答/灵感/账单类型、创建或更新便签、生成提醒通知文案，以及在必要范围内提供最近上下文。</p>
+          <p>账单金额和类型用于账单记录、历史筛选和个人数据统计；提醒时间用于本地通知和云端远程推送；飞书连接信息用于校验回调、绑定你的 Bot 单聊并同步飞书消息产生的记录。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>存储与同步</h2>
+          <p>念落会在你的设备本地保存必要数据；登录后，会将个人资料、便签、对话记录、删除标记、提醒状态和部分设置同步到云端，以支持多端安全的增量同步。</p>
+          <p>当你删除便签或对话时，系统可能会保留删除标记一段时间，用于避免已删除内容在其他设备重新出现。回收站、永久删除和云端同步完成后，相关内容会按当前产品规则处理。</p>
+          <p>飞书 App Secret、Verification Token 和 Encrypt Key 会发送到服务端并加密保存，用于验证飞书回调和发送 Bot 回复；应用内聊天记录只显示已隐藏的占位文案。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>系统权限</h2>
+          <p>麦克风和语音识别权限用于语音输入；通知权限用于本地提醒和接收云端远程提醒推送。你可以在系统设置中随时关闭这些权限，关闭后对应功能可能无法使用。</p>
+          <p>语音识别由系统能力提供，具体处理方式会受到操作系统及其语音识别服务规则约束。念落使用识别后的文字来完成你的记录请求。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>云端服务与第三方</h2>
+          <p>为实现账号登录、云端同步、AI 分析、远程推送和飞书 Bot 连接，相关信息可能会经过我们部署的服务端、数据库服务、AI 服务、Apple 推送服务和飞书开放平台处理。</p>
+          <p>当你通过飞书 Bot 与念落交流时，消息会先经过飞书平台，再由念落服务端处理并同步到你的账号。飞书侧的信息处理同时受飞书平台规则约束。</p>
+          <p>除法律法规要求、获得你的明确授权，或为实现你主动请求的功能外，我们不会主动向第三方出售、出租或公开你的个人信息和便签内容。当前版本未接入广告投放、用户画像或商业化追踪 SDK。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>安全保护</h2>
+          <p>我们会采取合理的技术措施保护你的数据，例如使用登录态校验、行级访问控制、敏感配置加密保存和服务端密钥管理。</p>
+          <p>互联网服务无法保证绝对安全。请妥善保管你的账号、设备、飞书应用凭证和系统权限，不要向不可信对象泄露敏感配置。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>你的权利</h2>
+          <p>你可以在应用内查看、编辑、删除便签和对话，移动到回收站或永久删除记录；你也可以修改个人资料、退出登录或关闭系统权限。</p>
+          <p>如果你希望访问、更正、删除更多个人信息，撤销飞书连接，或对本政策有疑问，可以通过应用商店展示的开发者联系方式与我们联系。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>未成年人保护</h2>
+          <p>如果你是不满 14 周岁的未成年人，应在监护人同意和指导下使用念落。监护人发现未成年人信息被不当处理的，可以联系我们处理。</p>
+        </section>
+
+        <section class="legal-section">
+          <h2>政策更新</h2>
+          <p>当功能、信息处理范围、第三方服务或法律要求发生变化时，我们可能更新本政策，并通过应用内页面或其他合理方式提示你查看。</p>
+        </section>
+      </article>
+    </main>
+
+    <script src="/main.js"></script>
+  </body>
+</html>
