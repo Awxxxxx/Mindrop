@@ -47,7 +47,7 @@ const SYSTEM_PROMPT = `
 - updateQA 时，note.title 应保留或升级为该话题的概括标题，不超过12个中文字符或24个英文字符；note.content 必须是合并后的完整问答要点，覆盖原便签正文，不要只写本轮新增内容；reply 仍然直接回答本轮问题。
 - 如果 currentInput 是全新问题、主题明显变化、只是和更早历史问题相似但不是上一轮问题的延续，或 recentQANotes 为空，则 action 使用 createNote。
 - 待办、账单、灵感沉淀以本次输入为主，除非用户明确说“刚才/上面/这个/那个/继续”等需要引用上文。
-- todo：若用户没有说具体提醒时间，reminderAt 必须为 null；若有相对时间，结合当前时间和时区计算。
+- todo：若用户没有说具体提醒时间，reminderAt 必须为 null；若有相对时间，必须基于 currentLocalTime/now 和 timeZone 计算；currentLocalTime/now 已经是 timeZone 对应的本地当前时间，不要把 utcNow 当成本地时间。
 - todo 回复格式优先为“已总结并收纳至“待办提醒”板块”。
 - bill：提取金额；账目分类映射为餐饮 food、交通 transit、购物 shopping、娱乐 entertainment、医教 education、居家 home、人情 relationship、其他 other。
 - bill：note.title 必须用用户具体消费对象加“支出”，例如“吃饭支出”“衣服支出”“咖啡支出”，不要用“餐饮支出/购物支出”这类分类名做标题；note.content 必须以“餐饮分类，”这类“xx分类，”开头，后面再写具体消费内容。
@@ -538,14 +538,17 @@ function isDeepSeekURL(value) {
 }
 
 function buildUserContent(input) {
+  const localNow = localISODateTime(input.now, input.timeZone);
   return JSON.stringify({
     currentInput: input.text,
-    now: input.now,
+    now: localNow || input.now,
+    currentLocalTime: localNow || input.now,
+    utcNow: input.now,
     timeZone: input.timeZone,
     recentContext: input.context,
     recentReminders: input.reminders,
     recentQANotes: input.qaNotes,
-    instruction: "先判断 recentContext 是否和 currentInput 相关。相关才用于理解指代、追问、闲聊和补全语义；不相关则忽略上下文，只处理 currentInput。如 currentInput 是修改提醒时间，必须从 recentReminders 中选择唯一目标并返回 updateReminder；如 currentInput 是删除/取消/不要某个提醒，必须从 recentReminders 中选择唯一目标并返回 deleteReminder。如 currentInput 是 QA，同一话题合并只能判断它与上一轮问题是否连续；只有 recentQANotes[0] 可作为更新目标，不要匹配更早的相似旧便签。",
+    instruction: "先判断 recentContext 是否和 currentInput 相关。相关才用于理解指代、追问、闲聊和补全语义；不相关则忽略上下文，只处理 currentInput。处理相对提醒时间时，必须使用 currentLocalTime/now 作为本地当前时间，utcNow 仅供校验不要当成本地时间。如 currentInput 是修改提醒时间，必须从 recentReminders 中选择唯一目标并返回 updateReminder；如 currentInput 是删除/取消/不要某个提醒，必须从 recentReminders 中选择唯一目标并返回 deleteReminder。如 currentInput 是 QA，同一话题合并只能判断它与上一轮问题是否连续；只有 recentQANotes[0] 可作为更新目标，不要匹配更早的相似旧便签。",
   });
 }
 
@@ -556,6 +559,52 @@ function buildReminderNotificationUserContent(input) {
     reminder: input.note,
     instruction: "只生成这条提醒到点时展示的通知标题和正文。不要解释，不要输出 Markdown。",
   });
+}
+
+function localISODateTime(value, timeZone) {
+  if (!value || !timeZone) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+      timeZoneName: "longOffset",
+    });
+    const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+    const offset = normalizeGMTOffset(parts.timeZoneName);
+    if (!parts.year || !parts.month || !parts.day || !parts.hour || !parts.minute || !parts.second || !offset) {
+      return null;
+    }
+    return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}${offset}`;
+  } catch (error) {
+    return null;
+  }
+}
+
+function normalizeGMTOffset(value) {
+  if (!value || value === "GMT" || value === "UTC") {
+    return "+00:00";
+  }
+
+  const match = String(value).match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) {
+    return null;
+  }
+  const [, sign, hour, minute = "00"] = match;
+  return `${sign}${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
 }
 
 function normalizeContext(context) {
