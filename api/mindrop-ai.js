@@ -1,5 +1,6 @@
-const DEFAULT_ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/plan/v3";
-const DEFAULT_ARK_MODEL = "deepseek-v4-flash";
+const DEFAULT_MODEL_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_MODEL = "deepseek-v4-flash";
+const DEBUG_TIMING_HEADER = "x-debug-ai-timing";
 
 const SYSTEM_PROMPT = `
 你是“小落”，也是“念落 Mindrop”的内容理解与收纳助手。你必须根据用户输入完成场景分类、结构化提取和回复生成。
@@ -109,94 +110,157 @@ export default async function handler(request, response) {
     return;
   }
 
-  const requestBody = await readRequestBody(request);
-  if (requestBody?.task === "reminderNotification") {
-    await handleReminderNotificationRequest(requestBody, response, config);
+  const timing = createAITiming();
+  const parseRequestStartedAt = nowMs();
+  let requestBody;
+  try {
+    requestBody = await readRequestBody(request);
+    markTiming(timing, "parseRequestMs", parseRequestStartedAt);
+  } catch (error) {
+    markTiming(timing, "parseRequestMs", parseRequestStartedAt);
+    attachTimingError(timing, "parseRequest", error);
+    sendJSON(response, 400, { error: "Invalid JSON request body" }, timing, request);
     return;
   }
+
+  if (requestBody?.task === "reminderNotification") {
+    await handleReminderNotificationRequest(requestBody, response, config, request, timing);
+    return;
+  }
+  timing.task = "analysis";
 
   const { text, now, timeZone, context, reminders, qaNotes } = requestBody;
   if (typeof text !== "string" || text.trim().length === 0) {
-    response.status(400).json({ error: "Missing text" });
+    sendJSON(response, 400, { error: "Missing text" }, timing, request);
     return;
   }
 
+  let modelFetchStartedAt = null;
   try {
+    timing.stage = "preparePayload";
+    const preparePayloadStartedAt = nowMs();
     const normalizedReminders = normalizeReminders(reminders);
     const normalizedQANotes = normalizeQANotes(qaNotes);
+    const normalizedContext = normalizeContext(context);
+    const modelPayload = modelRequestBody(config, {
+      text: text.trim(),
+      now,
+      timeZone,
+      context: normalizedContext,
+      reminders: normalizedReminders,
+      qaNotes: normalizedQANotes,
+    });
+    const modelPayloadText = JSON.stringify(modelPayload);
+    timing.modelRequestBytes = byteLength(modelPayloadText);
+    timing.contextCount = normalizedContext.length;
+    timing.reminderCandidateCount = normalizedReminders.length;
+    timing.qaCandidateCount = normalizedQANotes.length;
+    markTiming(timing, "preparePayloadMs", preparePayloadStartedAt);
+
+    timing.stage = "modelFetch";
+    modelFetchStartedAt = nowMs();
     const modelResponse = await fetch(config.endpoint, {
       method: "POST",
       headers: modelRequestHeaders(config),
-      body: JSON.stringify(modelRequestBody(config, {
-        text: text.trim(),
-        now,
-        timeZone,
-        context: normalizeContext(context),
-        reminders: normalizedReminders,
-        qaNotes: normalizedQANotes,
-      })),
+      body: modelPayloadText,
     });
 
     const raw = await modelResponse.text();
+    markTiming(timing, "modelFetchMs", modelFetchStartedAt);
+    timing.modelStatus = modelResponse.status;
+    timing.modelBodyBytes = byteLength(raw);
     if (!modelResponse.ok) {
-      response.status(modelResponse.status).json({
+      sendJSON(response, modelResponse.status, {
         error: "Model request failed",
         detail: safeErrorDetail(raw),
-      });
+      }, timing, request);
       return;
     }
 
+    timing.stage = "parseModel";
+    const parseModelStartedAt = nowMs();
     const completion = JSON.parse(raw);
     const content = extractModelText(completion, config.protocol);
+    timing.modelContentChars = Array.from(content).length;
     const result = normalizeResult(parseModelJSON(content), text.trim(), {
       reminders: normalizedReminders,
       qaNotes: normalizedQANotes,
     });
-    response.status(200).json(result);
+    timing.action = result.action;
+    timing.category = result.category;
+    markTiming(timing, "parseModelMs", parseModelStartedAt);
+    sendJSON(response, 200, result, timing, request);
   } catch (error) {
-    response.status(500).json({ error: "AI request failed" });
+    if (timing.stage === "modelFetch" && modelFetchStartedAt && timing.modelFetchMs === undefined) {
+      markTiming(timing, "modelFetchMs", modelFetchStartedAt);
+    }
+    attachTimingError(timing, timing.stage || "unknown", error);
+    sendJSON(response, 500, { error: "AI request failed" }, timing, request);
   }
 }
 
-async function handleReminderNotificationRequest(requestBody, response, config) {
+async function handleReminderNotificationRequest(requestBody, response, config, request, timing) {
+  timing.task = "reminderNotification";
+  timing.stage = "preparePayload";
+  const preparePayloadStartedAt = nowMs();
   const note = normalizeReminderNotificationNote(requestBody?.note);
+  markTiming(timing, "preparePayloadMs", preparePayloadStartedAt);
   if (!note) {
-    response.status(400).json({ error: "Missing reminder note" });
+    sendJSON(response, 400, { error: "Missing reminder note" }, timing, request);
     return;
   }
 
+  let modelFetchStartedAt = null;
   try {
+    const modelPayload = modelReminderNotificationRequestBody(config, {
+      note,
+      now: requestBody.now,
+      timeZone: requestBody.timeZone,
+    });
+    const modelPayloadText = JSON.stringify(modelPayload);
+    timing.modelRequestBytes = byteLength(modelPayloadText);
+
+    timing.stage = "modelFetch";
+    modelFetchStartedAt = nowMs();
     const modelResponse = await fetch(config.endpoint, {
       method: "POST",
       headers: modelRequestHeaders(config),
-      body: JSON.stringify(modelReminderNotificationRequestBody(config, {
-        note,
-        now: requestBody.now,
-        timeZone: requestBody.timeZone,
-      })),
+      body: modelPayloadText,
     });
 
     const raw = await modelResponse.text();
+    markTiming(timing, "modelFetchMs", modelFetchStartedAt);
+    timing.modelStatus = modelResponse.status;
+    timing.modelBodyBytes = byteLength(raw);
     if (!modelResponse.ok) {
-      response.status(modelResponse.status).json({
+      sendJSON(response, modelResponse.status, {
         error: "Model request failed",
         detail: safeErrorDetail(raw),
-      });
+      }, timing, request);
       return;
     }
 
+    timing.stage = "parseModel";
+    const parseModelStartedAt = nowMs();
     const completion = JSON.parse(raw);
     const content = extractModelText(completion, config.protocol);
-    response.status(200).json(normalizeReminderNotificationResult(parseModelJSON(content), note));
+    timing.modelContentChars = Array.from(content).length;
+    const result = normalizeReminderNotificationResult(parseModelJSON(content), note);
+    markTiming(timing, "parseModelMs", parseModelStartedAt);
+    sendJSON(response, 200, result, timing, request);
   } catch (error) {
-    response.status(500).json({ error: "AI request failed" });
+    if (timing.stage === "modelFetch" && modelFetchStartedAt && timing.modelFetchMs === undefined) {
+      markTiming(timing, "modelFetchMs", modelFetchStartedAt);
+    }
+    attachTimingError(timing, timing.stage || "unknown", error);
+    sendJSON(response, 500, { error: "AI request failed" }, timing, request);
   }
 }
 
 function setCorsHeaders(response) {
   response.setHeader("Access-Control-Allow-Origin", "*");
   response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  response.setHeader("Access-Control-Allow-Headers", `Content-Type, ${DEBUG_TIMING_HEADER}`);
 }
 
 async function readRequestBody(request) {
@@ -211,34 +275,131 @@ async function readRequestBody(request) {
   return {};
 }
 
+function createAITiming() {
+  return {
+    event: "mindrop_ai_timing",
+    region: process.env.VERCEL_REGION || "local",
+    task: "unknown",
+    stage: "start",
+    startedAtMs: nowMs(),
+  };
+}
+
+function nowMs() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function markTiming(timing, key, startedAtMs) {
+  timing[key] = roundTiming(nowMs() - startedAtMs);
+}
+
+function roundTiming(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function byteLength(value) {
+  return Buffer.byteLength(String(value || ""), "utf8");
+}
+
+function attachTimingError(timing, stage, error) {
+  timing.errorStage = stage;
+  timing.errorType = sanitizePublicText(String(error?.name || "Error")).slice(0, 80);
+  timing.errorMessage = sanitizePublicText(String(error?.message || "")).slice(0, 180);
+}
+
+function sendJSON(response, statusCode, payload, timing, request) {
+  const completedTiming = finishTiming(timing, statusCode);
+  logAITiming(completedTiming);
+
+  if (shouldIncludeDebugTiming(request) && payload && typeof payload === "object" && !Array.isArray(payload)) {
+    response.status(statusCode).json({
+      ...payload,
+      _debugTiming: completedTiming,
+    });
+    return;
+  }
+
+  response.status(statusCode).json(payload);
+}
+
+function finishTiming(timing, statusCode) {
+  if (timing.totalMs === undefined) {
+    timing.responseStatus = statusCode;
+    timing.success = statusCode >= 200 && statusCode < 400;
+    timing.lastStage = timing.stage || null;
+    timing.totalMs = roundTiming(nowMs() - timing.startedAtMs);
+    delete timing.startedAtMs;
+    delete timing.stage;
+  }
+  return timing;
+}
+
+function logAITiming(timing) {
+  try {
+    console.log(JSON.stringify(timing));
+  } catch (error) {
+    console.log("mindrop_ai_timing_log_failed");
+  }
+}
+
+function shouldIncludeDebugTiming(request) {
+  const value = getRequestHeader(request, DEBUG_TIMING_HEADER).toLowerCase();
+  return value === "1" || value === "true";
+}
+
+function getRequestHeader(request, headerName) {
+  if (!request?.headers) {
+    return "";
+  }
+
+  if (typeof request.headers.get === "function") {
+    return request.headers.get(headerName) || "";
+  }
+
+  return String(request.headers[headerName] || request.headers[headerName.toLowerCase()] || "");
+}
+
 function loadModelConfig() {
-  const baseURL = firstNonEmpty(
-    process.env.ARK_ENDPOINT,
-    process.env.ARK_BASE_URL,
+  const baseURL = normalizeModelBaseURL(firstNonEmpty(
+    process.env.MODEL_BASE_URL,
+    process.env.DEEPSEEK_BASE_URL,
     process.env.OPENAI_BASE_URL,
     process.env.ANTHROPIC_BASE_URL,
-    DEFAULT_ARK_BASE_URL
-  );
+    DEFAULT_MODEL_BASE_URL
+  ));
   const protocol = normalizeProtocol(
-    firstNonEmpty(process.env.ARK_PROTOCOL, process.env.AI_PROVIDER_PROTOCOL),
+    firstNonEmpty(process.env.MODEL_PROTOCOL, process.env.AI_PROVIDER_PROTOCOL),
     baseURL
   );
 
   return {
     apiKey: firstNonEmpty(
-      process.env.ARK_API_KEY,
+      process.env.MODEL_API_KEY,
+      process.env.DEEPSEEK_API_KEY,
       process.env.OPENAI_API_KEY,
       process.env.ANTHROPIC_AUTH_TOKEN
     ),
-    model: firstNonEmpty(
-      process.env.ARK_MODEL,
+    model: normalizeModelName(firstNonEmpty(
+      process.env.MODEL_NAME,
+      process.env.DEEPSEEK_MODEL,
       process.env.OPENAI_MODEL,
       process.env.ANTHROPIC_MODEL,
-      DEFAULT_ARK_MODEL
-    ),
+      DEFAULT_MODEL
+    )),
     protocol,
     endpoint: modelEndpoint(baseURL, protocol),
   };
+}
+
+function normalizeModelBaseURL(baseURL) {
+  return String(baseURL || DEFAULT_MODEL_BASE_URL).trim().replace(/\/+$/, "");
+}
+
+function normalizeModelName(model) {
+  return String(model || DEFAULT_MODEL).trim();
 }
 
 function firstNonEmpty(...values) {
@@ -252,13 +413,7 @@ function normalizeProtocol(explicitProtocol, baseURL) {
   }
 
   const normalizedBaseURL = baseURL.toLowerCase().replace(/\/+$/, "");
-  if (
-    normalizedBaseURL.endsWith("/v1/messages") ||
-    (
-      (normalizedBaseURL.includes("/api/plan") || normalizedBaseURL.includes("/api/coding")) &&
-      !normalizedBaseURL.includes("/v3")
-    )
-  ) {
+  if (normalizedBaseURL.endsWith("/v1/messages")) {
     return "anthropic";
   }
   return "openai";
@@ -314,6 +469,7 @@ function modelRequestBody(config, input) {
     model: config.model,
     max_tokens: 1600,
     temperature: 0.2,
+    ...modelThinkingControl(config),
     messages: [
       {
         role: "system",
@@ -348,6 +504,7 @@ function modelReminderNotificationRequestBody(config, input) {
     model: config.model,
     max_tokens: 300,
     temperature: 0.45,
+    ...modelThinkingControl(config),
     messages: [
       {
         role: "system",
@@ -359,6 +516,25 @@ function modelReminderNotificationRequestBody(config, input) {
       },
     ],
   };
+}
+
+function modelThinkingControl(config) {
+  if (config.protocol !== "openai" || !isDeepSeekURL(config.endpoint)) {
+    return {};
+  }
+  return {
+    thinking: {
+      type: "disabled",
+    },
+  };
+}
+
+function isDeepSeekURL(value) {
+  try {
+    return new URL(value).hostname.endsWith("deepseek.com");
+  } catch (error) {
+    return String(value || "").includes("deepseek.com");
+  }
 }
 
 function buildUserContent(input) {
@@ -455,7 +631,6 @@ function safeErrorDetail(raw) {
   }
   return sanitizePublicText(raw
     .slice(0, 600)
-    .replace(/ark-[A-Za-z0-9-]+/g, "[redacted]")
     .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]"));
 }
 
@@ -730,8 +905,5 @@ function sanitizePublicText(value) {
   return value
     .replace(/deepseek/gi, "小落")
     .replace(/deep\s*seek/gi, "小落")
-    .replace(/火山引擎|火山方舟|Volcengine|Volcano\s*Ark/gi, "服务")
-    .replace(/ark\.cn-[A-Za-z0-9.-]+\/[A-Za-z0-9/._-]*/gi, "[redacted]")
-    .replace(/\bARK_[A-Z0-9_]+\b/g, "[redacted]")
     .replace(/\b(OPENAI|ANTHROPIC)_[A-Z0-9_]+\b/g, "[redacted]");
 }
