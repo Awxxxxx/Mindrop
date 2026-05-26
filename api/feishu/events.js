@@ -5,6 +5,10 @@ const DEFAULT_SUPABASE_URL = "https://ayzmmchrepbtfnjegqxp.supabase.co";
 const FEISHU_API_BASE = "https://open.feishu.cn/open-apis";
 const MAX_TEXT_LENGTH = 2000;
 const TYPING_REACTION_EMOJI_TYPE = "Typing";
+const MAX_STALE_MESSAGE_AGE_MS = 10 * 60 * 1000;
+const PRE_PAIR_CLOCK_SKEW_MS = 30 * 1000;
+const AI_RETRY_DELAY_MS = 350;
+const PROCESSING_FAILED_REPLY = "小落刚才处理失败了，这条没有成功收纳。你可以稍后再发一次。";
 
 const cachedTenantTokens = new Map();
 
@@ -86,13 +90,11 @@ export default async function handler(request, response) {
   }
 
   try {
-    const existing = await fetchEventRecord(config, event.eventID);
-    if (existing && ["processing", "processed", "ignored"].includes(existing.status)) {
+    const claimed = await claimEventRecord(config, connection, event);
+    if (!claimed) {
       response.status(200).json({ ok: true, duplicate: true });
       return;
     }
-
-    await upsertEventRecord(config, connection, event, "processing");
 
     const processResult = await processMessageEvent(config, connection, event);
     await markEventRecord(config, event.eventID, processResult.status, {
@@ -104,6 +106,8 @@ export default async function handler(request, response) {
   } catch (error) {
     console.error("Mindrop Feishu event failed", safeError(error));
     await markEventRecord(config, event.eventID, "error", { error: safeError(error) }).catch(() => {});
+    await insertFailureChatMessage(config, connection, event).catch(() => {});
+    await replyToFeishuMessage(connection, event, PROCESSING_FAILED_REPLY).catch(() => {});
     response.status(200).json({ ok: true, status: "error" });
   }
 }
@@ -156,6 +160,10 @@ async function processMessageEvent(config, connection, event) {
     return { status: "processed", userID };
   }
 
+  if (shouldIgnoreNormalMessageByTime(connection, event)) {
+    return { status: "ignored", userID: connection.userID };
+  }
+
   if (!connection.pairedOpenID || connection.status !== "paired") {
     await replyToFeishuMessage(connection, event, "请先在 Mindrop 里完成“飞书配对”，再发送绑定码。");
     return { status: "ignored" };
@@ -178,6 +186,7 @@ async function processMessageEvent(config, connection, event) {
       text,
       category: null,
       noteID: null,
+      id: deterministicUUID("feishu", connection.id, event.messageID, "user"),
       now,
     });
 
@@ -189,13 +198,20 @@ async function processMessageEvent(config, connection, event) {
       reminders,
       qaNotes,
     });
-    const noteID = await applyAnalysis(config, connection.userID, analysis, now);
+    const noteID = await applyAnalysis(
+      config,
+      connection.userID,
+      analysis,
+      now,
+      deterministicUUID("feishu", connection.id, event.messageID, "note")
+    );
     await insertChatMessage(config, {
       userID: connection.userID,
       role: "assistant",
       text: analysis.reply,
       category: categoryToRawValue(analysis.category),
       noteID,
+      id: deterministicUUID("feishu", connection.id, event.messageID, "assistant"),
       now: new Date(),
     });
     await replyToFeishuMessage(connection, event, analysis.reply);
@@ -265,17 +281,20 @@ function normalizeMessageEvent(payload, connectionID) {
   const message = event.message || {};
   const sender = event.sender || {};
   const senderID = sender.sender_id || {};
+  const messageID = message.message_id || event.message_id || "";
   return {
     connectionID,
-    eventID: payload.header?.event_id || message.message_id,
+    eventID: messageID || payload.header?.event_id,
+    deliveryID: payload.header?.event_id || "",
     eventType: payload.header?.event_type,
     tenantKey: payload.header?.tenant_key || sender.tenant_key || event.tenant_key || "",
     openID: senderID.open_id || event.sender_id || "",
     senderType: sender.sender_type || "",
     chatID: message.chat_id || event.chat_id || "",
     chatType: message.chat_type || event.chat_type || "",
-    messageID: message.message_id || event.message_id || "",
+    messageID,
     messageType: message.message_type || event.message_type || "",
+    createTime: parseFeishuTimestamp(message.create_time || event.create_time || payload.header?.create_time),
     content: message.content ?? event.content,
   };
 }
@@ -286,6 +305,47 @@ function extractTextMessage(event) {
   }
   const content = typeof event.content === "string" ? parseJSON(event.content) : event.content;
   return sanitizeText(content?.text || "").slice(0, MAX_TEXT_LENGTH);
+}
+
+function parseFeishuTimestamp(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  const milliseconds = numeric > 10_000_000_000 ? numeric : numeric * 1000;
+  const date = new Date(milliseconds);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function shouldIgnoreNormalMessageByTime(connection, event) {
+  if (!event.createTime) {
+    return false;
+  }
+
+  const createdAt = event.createTime.getTime();
+  if (Date.now() - createdAt > MAX_STALE_MESSAGE_AGE_MS) {
+    console.warn("Mindrop Feishu ignored stale message", {
+      connectionID: connection.id,
+      messageID: event.messageID,
+      createdAt: event.createTime.toISOString(),
+    });
+    return true;
+  }
+
+  if (connection.status === "paired" && connection.pairingExpiresAt) {
+    const pairedAt = Date.parse(connection.pairingExpiresAt);
+    if (Number.isFinite(pairedAt) && createdAt + PRE_PAIR_CLOCK_SKEW_MS < pairedAt) {
+      console.warn("Mindrop Feishu ignored pre-pair message", {
+        connectionID: connection.id,
+        messageID: event.messageID,
+        createdAt: event.createTime.toISOString(),
+        pairedAt: new Date(pairedAt).toISOString(),
+      });
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function parseBindCode(text) {
@@ -470,31 +530,41 @@ async function fetchQACandidates(config, userID) {
 }
 
 async function analyzeText(body) {
-  let statusCode = 200;
-  let payload = null;
-  const response = {
-    setHeader() {},
-    status(code) {
-      statusCode = code;
-      return this;
-    },
-    json(value) {
-      payload = value;
-      return this;
-    },
-    end() {
-      return this;
-    },
-  };
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    let statusCode = 200;
+    let payload = null;
+    const response = {
+      setHeader() {},
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(value) {
+        payload = value;
+        return this;
+      },
+      end() {
+        return this;
+      },
+    };
 
-  await mindropAIHandler({ method: "POST", body }, response);
-  if (statusCode < 200 || statusCode >= 300) {
-    throw new Error(`Mindrop AI failed: ${statusCode}`);
+    await mindropAIHandler({ method: "POST", body }, response);
+    if (statusCode >= 200 && statusCode < 300) {
+      return payload;
+    }
+
+    const detail = safeErrorText(payload?.detail || payload?.error || "");
+    lastError = new Error(`Mindrop AI failed: ${statusCode}${detail ? ` ${detail}` : ""}`);
+    if (attempt < 2) {
+      await sleep(AI_RETRY_DELAY_MS);
+    }
   }
-  return payload;
+
+  throw lastError || new Error("Mindrop AI failed");
 }
 
-async function applyAnalysis(config, userID, analysis, now) {
+async function applyAnalysis(config, userID, analysis, now, createNoteID = null) {
   const category = categoryToRawValue(analysis.category);
   const action = analysis.action || "createNote";
 
@@ -543,7 +613,7 @@ async function applyAnalysis(config, userID, analysis, now) {
     return analysis.targetNoteId;
   }
 
-  const noteID = crypto.randomUUID();
+  const noteID = createNoteID || crypto.randomUUID();
   const createdAt = now.toISOString();
   await supabaseFetch(config, "/rest/v1/thought_notes?on_conflict=id", {
     method: "POST",
@@ -590,7 +660,7 @@ async function insertChatMessage(config, message) {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({
-      id: crypto.randomUUID(),
+      id: message.id || crypto.randomUUID(),
       user_id: message.userID,
       role: message.role,
       text: textOrFallback(message.text, ""),
@@ -604,19 +674,25 @@ async function insertChatMessage(config, message) {
   });
 }
 
-async function fetchEventRecord(config, eventID) {
-  const query = new URLSearchParams({
-    select: "event_id,status",
-    event_id: `eq.${eventID}`,
-    limit: "1",
+async function insertFailureChatMessage(config, connection, event) {
+  if (connection.status !== "paired" || connection.pairedOpenID !== event.openID) {
+    return;
+  }
+  await insertChatMessage(config, {
+    userID: connection.userID,
+    role: "assistant",
+    text: PROCESSING_FAILED_REPLY,
+    category: null,
+    noteID: null,
+    id: deterministicUUID("feishu", connection.id, event.messageID, "assistant-error"),
+    now: new Date(),
   });
-  return (await supabaseFetch(config, `/rest/v1/feishu_message_events?${query}`))[0] || null;
 }
 
-async function upsertEventRecord(config, connection, event, status) {
-  await supabaseFetch(config, "/rest/v1/feishu_message_events?on_conflict=event_id", {
+async function claimEventRecord(config, connection, event) {
+  const created = await supabaseFetch(config, "/rest/v1/feishu_message_events?on_conflict=event_id", {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
     body: JSON.stringify({
       event_id: event.eventID,
       connection_id: connection.id,
@@ -626,11 +702,11 @@ async function upsertEventRecord(config, connection, event, status) {
       chat_id: event.chatID,
       message_id: event.messageID,
       user_id: connection.userID,
-      status,
+      status: "processing",
       error: null,
     }),
-    expectJSON: false,
   });
+  return created?.[0] || null;
 }
 
 async function markEventRecord(config, eventID, status, options = {}) {
@@ -658,7 +734,7 @@ async function replyToFeishuMessage(connection, event, text) {
 
   try {
     const token = await internalTenantAccessToken(connection);
-    const query = new URLSearchParams({ uuid: `${event.eventID || crypto.randomUUID()}-reply` });
+    const query = new URLSearchParams({ uuid: dedupeToken("reply", connection.id, event.messageID) });
     const feishuResponse = await fetch(`${FEISHU_API_BASE}/im/v1/messages/${encodeURIComponent(event.messageID)}/reply?${query}`, {
       method: "POST",
       headers: {
@@ -883,6 +959,29 @@ function timingSafeEqual(left, right) {
 function textOrFallback(value, fallback) {
   const text = sanitizeText(value);
   return text.length > 0 ? text : fallback;
+}
+
+function deterministicUUID(...parts) {
+  const hash = crypto
+    .createHash("sha256")
+    .update(parts.map((part) => String(part || "")).join("\u001f"))
+    .digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function dedupeToken(...parts) {
+  return crypto
+    .createHash("sha256")
+    .update(parts.map((part) => String(part || "")).join("\u001f"))
+    .digest("hex")
+    .slice(0, 32);
+}
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function sanitizeText(value) {
