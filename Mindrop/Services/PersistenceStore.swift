@@ -7,6 +7,7 @@ struct AppSnapshot: Codable {
     var messages: [ChatMessage]
     var deletedMessages: [ChatMessage]
     var hasTrimmedChatHistory: Bool
+    var hasPendingCloudChanges: Bool
     var profile: UserProfile
     var followsSystemAppearance: Bool
 
@@ -17,6 +18,7 @@ struct AppSnapshot: Codable {
         messages: [ChatMessage],
         deletedMessages: [ChatMessage] = [],
         hasTrimmedChatHistory: Bool = false,
+        hasPendingCloudChanges: Bool = false,
         profile: UserProfile,
         followsSystemAppearance: Bool = true
     ) {
@@ -26,6 +28,7 @@ struct AppSnapshot: Codable {
         self.messages = messages
         self.deletedMessages = deletedMessages
         self.hasTrimmedChatHistory = hasTrimmedChatHistory
+        self.hasPendingCloudChanges = hasPendingCloudChanges
         self.profile = profile
         self.followsSystemAppearance = followsSystemAppearance
     }
@@ -37,6 +40,7 @@ struct AppSnapshot: Codable {
         case messages
         case deletedMessages
         case hasTrimmedChatHistory
+        case hasPendingCloudChanges
         case profile
         case followsSystemAppearance
     }
@@ -49,6 +53,7 @@ struct AppSnapshot: Codable {
         messages = try container.decode([ChatMessage].self, forKey: .messages)
         deletedMessages = try container.decodeIfPresent([ChatMessage].self, forKey: .deletedMessages) ?? []
         hasTrimmedChatHistory = try container.decodeIfPresent(Bool.self, forKey: .hasTrimmedChatHistory) ?? false
+        hasPendingCloudChanges = try container.decodeIfPresent(Bool.self, forKey: .hasPendingCloudChanges) ?? false
         profile = try container.decode(UserProfile.self, forKey: .profile)
         followsSystemAppearance = try container.decodeIfPresent(Bool.self, forKey: .followsSystemAppearance) ?? true
     }

@@ -4,15 +4,15 @@ import UIKit
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var session: SessionState = .welcome { didSet { persistIfReady() } }
+    @Published var session: SessionState = .welcome { didSet { persistIfReady(markCloudDirty: false) } }
     @Published var selectedTab: AppTab = .history
     @Published var selectedCategory: ThoughtCategory = .todo
     @Published var selectedRange: TimeRange = .seven
-    @Published var notes: [ThoughtNote] = [] { didSet { persistIfReady() } }
-    @Published var messages: [ChatMessage] = [] { didSet { persistIfReady() } }
-    @Published var hasTrimmedChatHistory = false { didSet { persistIfReady() } }
-    @Published var profile = UserProfile.loggedOut { didSet { persistIfReady() } }
-    @Published var followsSystemAppearance = true { didSet { persistIfReady() } }
+    @Published var notes: [ThoughtNote] = [] { didSet { persistIfReady(markCloudDirty: true) } }
+    @Published var messages: [ChatMessage] = [] { didSet { persistIfReady(markCloudDirty: true) } }
+    @Published var hasTrimmedChatHistory = false { didSet { persistIfReady(markCloudDirty: true) } }
+    @Published var profile = UserProfile.loggedOut { didSet { persistIfReady(markCloudDirty: false) } }
+    @Published var followsSystemAppearance = true { didSet { persistIfReady(markCloudDirty: true) } }
     @Published var isAIThinking = false
     @Published var isAuthenticating = false
     @Published var isSavingProfile = false
@@ -28,6 +28,8 @@ final class AppStore: ObservableObject {
     private var isPreparingCloudSession = false
     private var currentSupabaseSession: SupabaseSession?
     private var cloudSyncTask: Task<Void, Never>?
+    private var hasPendingCloudChanges = false
+    private var cloudSyncRevision = 0
     private var pendingAIRequestCount = 0
     private var deletedNotes: [ThoughtNote] = []
     private var deletedMessages: [ChatMessage] = []
@@ -47,6 +49,7 @@ final class AppStore: ObservableObject {
             messages = snapshot.messages.filter { $0.deletedAt == nil }
             deletedMessages = snapshot.deletedMessages + snapshot.messages.filter { $0.deletedAt != nil }
             hasTrimmedChatHistory = snapshot.hasTrimmedChatHistory
+            hasPendingCloudChanges = snapshot.hasPendingCloudChanges
             profile = snapshot.profile
             followsSystemAppearance = snapshot.followsSystemAppearance
             enforceChatHistoryLimit()
@@ -58,7 +61,7 @@ final class AppStore: ObservableObject {
         selectedCategory = .todo
         isRestoring = false
         observeRemotePushTokenUpdates()
-        persistIfReady()
+        persistIfReady(markCloudDirty: false)
 
         Task {
             await restoreSupabaseSession()
@@ -91,7 +94,11 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func flushPendingLocalChanges() {
+    func flushLocalSnapshot() {
+        persistImmediately()
+    }
+
+    func flushPendingCloudChanges() {
         persistImmediately()
         scheduleCloudSync(delayMilliseconds: 0)
     }
@@ -155,7 +162,7 @@ final class AppStore: ObservableObject {
                 removeBuiltInSampleDataFromCurrentState()
                 await syncCloudProfile(using: authSession)
                 await registerForRemotePushIfPossible()
-                scheduleCloudSync()
+                queueCloudSyncIfNeeded()
                 showToast("注册成功，已开启云同步")
             } else {
                 showToast("注册成功，请查收确认邮件后再登录")
@@ -873,10 +880,15 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private func persistIfReady() {
+    private func persistIfReady(markCloudDirty: Bool) {
         guard !isRestoring, !isApplyingRemoteSnapshot, !isPreparingCloudSession else { return }
+        if markCloudDirty {
+            markPendingCloudChanges()
+        }
         PersistenceStore.save(currentSnapshot())
-        scheduleCloudSync()
+        if markCloudDirty {
+            scheduleCloudSync()
+        }
     }
 
     private func persistImmediately() {
@@ -892,6 +904,7 @@ final class AppStore: ObservableObject {
             messages: messages,
             deletedMessages: deletedMessages,
             hasTrimmedChatHistory: hasTrimmedChatHistory,
+            hasPendingCloudChanges: hasPendingCloudChanges,
             profile: profile,
             followsSystemAppearance: followsSystemAppearance
         )
@@ -945,19 +958,17 @@ final class AppStore: ObservableObject {
             if remoteData.hasContentRows {
                 applyRemoteAppData(remoteData)
             } else if let legacySnapshot, !legacySnapshot.notes.isEmpty || !legacySnapshot.messages.isEmpty {
-                applyRemoteSnapshot(legacySnapshot)
-                scheduleCloudSync()
+                applyRemoteSnapshot(legacySnapshot, shouldUploadMergedData: true)
                 showToast("已恢复旧版云端数据")
             } else if remoteData.hasRemoteRows {
                 applyRemoteAppData(remoteData)
             } else if let legacySnapshot {
-                applyRemoteSnapshot(legacySnapshot)
-                scheduleCloudSync()
+                applyRemoteSnapshot(legacySnapshot, shouldUploadMergedData: false)
             } else {
-                scheduleCloudSync()
+                queueCloudSyncIfNeeded()
             }
         } catch {
-            scheduleCloudSync()
+            queueCloudSyncIfNeeded()
             showToast("云端数据暂时无法读取，已保留本机数据")
         }
     }
@@ -1028,7 +1039,8 @@ final class AppStore: ObservableObject {
         String(format: "%08d", Int.random(in: 0...99_999_999))
     }
 
-    private func applyRemoteSnapshot(_ snapshot: AppSnapshot) {
+    private func applyRemoteSnapshot(_ snapshot: AppSnapshot, shouldUploadMergedData: Bool) {
+        let shouldResumePendingSync = hasPendingCloudChanges
         cloudSyncTask?.cancel()
         isApplyingRemoteSnapshot = true
         session = .authenticated
@@ -1063,13 +1075,20 @@ final class AppStore: ObservableObject {
         isApplyingRemoteSnapshot = false
 
         PersistenceStore.save(currentSnapshot())
-        scheduleCloudSync()
+        if shouldUploadMergedData {
+            markPendingCloudChanges()
+            PersistenceStore.save(currentSnapshot())
+            scheduleCloudSync()
+        } else if shouldResumePendingSync {
+            scheduleCloudSync(delayMilliseconds: 1_500)
+        }
         Task {
             await rescheduleFutureReminders()
         }
     }
 
     private func applyRemoteAppData(_ data: SupabaseAppData) {
+        let shouldResumePendingSync = hasPendingCloudChanges
         cloudSyncTask?.cancel()
         isApplyingRemoteSnapshot = true
         session = .authenticated
@@ -1103,7 +1122,9 @@ final class AppStore: ObservableObject {
         isApplyingRemoteSnapshot = false
 
         PersistenceStore.save(currentSnapshot())
-        scheduleCloudSync()
+        if shouldResumePendingSync {
+            scheduleCloudSync(delayMilliseconds: 1_500)
+        }
         Task {
             await rescheduleFutureReminders()
         }
@@ -1160,16 +1181,39 @@ final class AppStore: ObservableObject {
         return (active, deleted)
     }
 
+    private var hasSyncableCloudContent: Bool {
+        notes.contains { !Self.isBuiltInSampleNote($0) } ||
+            !deletedNotes.isEmpty ||
+            messages.contains { !Self.isBuiltInSampleMessage($0) } ||
+            !deletedMessages.isEmpty ||
+            hasTrimmedChatHistory ||
+            !followsSystemAppearance
+    }
+
+    private func queueCloudSyncIfNeeded(delayMilliseconds: UInt64 = 500) {
+        guard hasSyncableCloudContent else { return }
+        markPendingCloudChanges()
+        PersistenceStore.save(currentSnapshot())
+        scheduleCloudSync(delayMilliseconds: delayMilliseconds)
+    }
+
+    private func markPendingCloudChanges() {
+        hasPendingCloudChanges = true
+        cloudSyncRevision += 1
+    }
+
     private func scheduleCloudSync(delayMilliseconds: UInt64 = 500) {
         guard session == .authenticated, let authSession = currentSupabaseSession else { return }
+        guard hasPendingCloudChanges else { return }
         let notes = notes.filter { !Self.isBuiltInSampleNote($0) }
         let deletedNotes = deletedNotes
         let messages = messages.filter { !Self.isBuiltInSampleMessage($0) }
         let deletedMessages = deletedMessages
         let hasTrimmedChatHistory = hasTrimmedChatHistory
         let followsSystemAppearance = followsSystemAppearance
+        let syncRevision = cloudSyncRevision
         cloudSyncTask?.cancel()
-        cloudSyncTask = Task { [weak self, supabaseService, authSession, notes, deletedNotes, messages, deletedMessages, hasTrimmedChatHistory, followsSystemAppearance, delayMilliseconds] in
+        cloudSyncTask = Task { [weak self, supabaseService, authSession, notes, deletedNotes, messages, deletedMessages, hasTrimmedChatHistory, followsSystemAppearance, delayMilliseconds, syncRevision] in
             do {
                 if delayMilliseconds > 0 {
                     try await Task.sleep(nanoseconds: delayMilliseconds * 1_000_000)
@@ -1183,14 +1227,16 @@ final class AppStore: ObservableObject {
                     followsSystemAppearance: followsSystemAppearance,
                     using: authSession
                 )
+                await MainActor.run {
+                    guard let self, self.cloudSyncRevision == syncRevision else { return }
+                    self.hasPendingCloudChanges = false
+                    PersistenceStore.save(self.currentSnapshot())
+                }
             } catch is CancellationError {
                 return
             } catch {
                 guard !Self.isCancellationError(error) else { return }
                 print("Mindrop cloud sync failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self?.showToast("云同步失败：\(self?.authErrorMessage(from: error) ?? "稍后会自动重试")")
-                }
             }
         }
     }

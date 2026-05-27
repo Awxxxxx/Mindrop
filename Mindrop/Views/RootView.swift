@@ -35,8 +35,10 @@ struct RootView: View {
                     await store.refreshCloudDataFromServer()
                     await store.refreshRemotePushRegistration()
                 }
-            case .inactive, .background:
-                store.flushPendingLocalChanges()
+            case .inactive:
+                store.flushLocalSnapshot()
+            case .background:
+                store.flushPendingCloudChanges()
             @unknown default:
                 break
             }
