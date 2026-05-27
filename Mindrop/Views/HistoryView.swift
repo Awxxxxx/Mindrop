@@ -44,6 +44,7 @@ struct HistoryView: View {
                         VStack(alignment: .leading, spacing: 17) {
                             header
                             categories
+                            categoryNotice
 
                             if store.selectedCategory == .bill {
                                 billFilters
@@ -312,6 +313,18 @@ struct HistoryView: View {
         .scrollClipDisabled()
     }
 
+    @ViewBuilder
+    private var categoryNotice: some View {
+        switch store.selectedCategory {
+        case .todo:
+            noteRuleNotice("提醒时间24h后进入回收站")
+        case .qa:
+            noteRuleNotice("仅保留最近100个话题")
+        default:
+            EmptyView()
+        }
+    }
+
     private var billFilters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
@@ -353,7 +366,11 @@ struct HistoryView: View {
     }
 
     private var recycleBinNotice: some View {
-        Text("进入回收站7天后将彻底删除")
+        noteRuleNotice("进入回收站7天后将彻底删除")
+    }
+
+    private func noteRuleNotice(_ text: String) -> some View {
+        Text(text)
             .font(.footnote.weight(.medium))
             .foregroundStyle(Color.mindInk.opacity(0.46))
             .frame(maxWidth: .infinity, alignment: .leading)
