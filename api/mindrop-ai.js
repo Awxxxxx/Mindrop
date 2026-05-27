@@ -736,11 +736,23 @@ function normalizeResult(result, sourceText, candidates = {}) {
     note: {
       title: normalizedNote.title,
       content: normalizedNote.content,
-      reminderAt: category === "todo" && typeof note.reminderAt === "string" ? note.reminderAt : null,
+      reminderAt: category === "todo" ? normalizeReminderAt(note.reminderAt) : null,
       expenseAmount,
       expenseCategory,
     },
   };
+}
+
+function normalizeReminderAt(value) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+  return parsedDate.toISOString();
 }
 
 function normalizeReminderNotificationResult(result, note) {
