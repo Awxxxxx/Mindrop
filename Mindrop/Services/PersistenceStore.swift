@@ -6,6 +6,7 @@ struct AppSnapshot: Codable {
     var deletedNotes: [ThoughtNote]
     var messages: [ChatMessage]
     var deletedMessages: [ChatMessage]
+    var profileStats: ProfileStats
     var hasTrimmedChatHistory: Bool
     var hasPendingCloudChanges: Bool
     var profile: UserProfile
@@ -17,6 +18,7 @@ struct AppSnapshot: Codable {
         deletedNotes: [ThoughtNote] = [],
         messages: [ChatMessage],
         deletedMessages: [ChatMessage] = [],
+        profileStats: ProfileStats = .empty,
         hasTrimmedChatHistory: Bool = false,
         hasPendingCloudChanges: Bool = false,
         profile: UserProfile,
@@ -27,6 +29,7 @@ struct AppSnapshot: Codable {
         self.deletedNotes = deletedNotes
         self.messages = messages
         self.deletedMessages = deletedMessages
+        self.profileStats = profileStats
         self.hasTrimmedChatHistory = hasTrimmedChatHistory
         self.hasPendingCloudChanges = hasPendingCloudChanges
         self.profile = profile
@@ -39,6 +42,7 @@ struct AppSnapshot: Codable {
         case deletedNotes
         case messages
         case deletedMessages
+        case profileStats
         case hasTrimmedChatHistory
         case hasPendingCloudChanges
         case profile
@@ -52,6 +56,7 @@ struct AppSnapshot: Codable {
         deletedNotes = try container.decodeIfPresent([ThoughtNote].self, forKey: .deletedNotes) ?? []
         messages = try container.decode([ChatMessage].self, forKey: .messages)
         deletedMessages = try container.decodeIfPresent([ChatMessage].self, forKey: .deletedMessages) ?? []
+        profileStats = try container.decodeIfPresent(ProfileStats.self, forKey: .profileStats) ?? .empty
         hasTrimmedChatHistory = try container.decodeIfPresent(Bool.self, forKey: .hasTrimmedChatHistory) ?? false
         hasPendingCloudChanges = try container.decodeIfPresent(Bool.self, forKey: .hasPendingCloudChanges) ?? false
         profile = try container.decode(UserProfile.self, forKey: .profile)

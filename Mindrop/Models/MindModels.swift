@@ -194,6 +194,62 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     }
 }
 
+struct ProfileStats: Codable, Equatable {
+    static let empty = ProfileStats()
+
+    var noteRecords: [NoteStatRecord]
+    var messageRecords: [MessageStatRecord]
+
+    init(
+        noteRecords: [NoteStatRecord] = [],
+        messageRecords: [MessageStatRecord] = []
+    ) {
+        self.noteRecords = noteRecords
+        self.messageRecords = messageRecords
+    }
+}
+
+struct NoteStatRecord: Identifiable, Codable, Equatable {
+    let noteID: UUID
+    var createdAt: Date
+    var updatedAt: Date
+    var category: ThoughtCategory
+    var expenseAmount: Decimal?
+    var expenseCategory: ExpenseCategory?
+
+    var id: UUID { noteID }
+
+    init(
+        noteID: UUID,
+        createdAt: Date,
+        updatedAt: Date,
+        category: ThoughtCategory,
+        expenseAmount: Decimal? = nil,
+        expenseCategory: ExpenseCategory? = nil
+    ) {
+        self.noteID = noteID
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.category = category
+        self.expenseAmount = expenseAmount
+        self.expenseCategory = expenseCategory
+    }
+}
+
+struct MessageStatRecord: Identifiable, Codable, Equatable {
+    let messageID: UUID
+    var createdAt: Date
+    var updatedAt: Date
+
+    var id: UUID { messageID }
+
+    init(messageID: UUID, createdAt: Date, updatedAt: Date) {
+        self.messageID = messageID
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
 struct UserProfile: Codable, Equatable {
     static let defaultAvatarName = "DefaultAvatar"
     static let loggedOut = UserProfile(nickname: "小念", userID: "mindrop01", avatarName: UserProfile.defaultAvatarName)

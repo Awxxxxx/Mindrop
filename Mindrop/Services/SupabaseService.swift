@@ -63,6 +63,7 @@ struct SupabaseAppData {
     let deletedNotes: [ThoughtNote]
     let messages: [ChatMessage]
     let deletedMessages: [ChatMessage]
+    let profileStats: ProfileStats
     let hasTrimmedChatHistory: Bool
     let followsSystemAppearance: Bool
     let hasSettings: Bool
@@ -72,7 +73,12 @@ struct SupabaseAppData {
     }
 
     var hasContentRows: Bool {
-        !notes.isEmpty || !deletedNotes.isEmpty || !messages.isEmpty || !deletedMessages.isEmpty
+        !notes.isEmpty ||
+            !deletedNotes.isEmpty ||
+            !messages.isEmpty ||
+            !deletedMessages.isEmpty ||
+            !profileStats.noteRecords.isEmpty ||
+            !profileStats.messageRecords.isEmpty
     }
 }
 
@@ -378,12 +384,14 @@ final class SupabaseService {
         let activeSession = try await activeSession(from: session)
         let allNotes = try await fetchNotes(using: activeSession)
         let allMessages = try await fetchMessages(using: activeSession)
+        let profileStats = try await fetchProfileStats(using: activeSession)
         let settings = try await fetchSettings(using: activeSession)
         return SupabaseAppData(
             notes: allNotes.filter { $0.deletedAt == nil },
             deletedNotes: allNotes.filter { $0.deletedAt != nil },
             messages: allMessages.filter { $0.deletedAt == nil },
             deletedMessages: allMessages.filter { $0.deletedAt != nil },
+            profileStats: profileStats,
             hasTrimmedChatHistory: settings?.hasTrimmedChatHistory ?? false,
             followsSystemAppearance: settings?.followsSystemAppearance ?? true,
             hasSettings: settings != nil
@@ -395,6 +403,7 @@ final class SupabaseService {
         deletedNotes: [ThoughtNote],
         messages: [ChatMessage],
         deletedMessages: [ChatMessage],
+        profileStats: ProfileStats,
         hasTrimmedChatHistory: Bool,
         followsSystemAppearance: Bool,
         using session: SupabaseSession
@@ -407,6 +416,12 @@ final class SupabaseService {
         )
         try await upsertNotes(notes + deletedNotes, using: activeSession)
         try await upsertMessages(messages + deletedMessages, using: activeSession)
+        do {
+            try await upsertProfileStats(profileStats, using: activeSession)
+        } catch {
+            guard Self.isMissingStatsTableError(error) else { throw error }
+            print("Mindrop profile stats sync skipped: \(error.localizedDescription)")
+        }
     }
 
     private func fetchNotes(using session: SupabaseSession) async throws -> [ThoughtNote] {
@@ -431,6 +446,44 @@ final class SupabaseService {
         guard let url = components.url else { throw SupabaseServiceError.invalidConfiguration }
         let data = try await perform(try makeRequest(url: url, method: "GET", accessToken: session.accessToken))
         return try JSONDecoder().decode([RemoteChatMessage].self, from: data).map(\.message)
+    }
+
+    private func fetchProfileStats(using session: SupabaseSession) async throws -> ProfileStats {
+        do {
+            async let noteStats = fetchNoteStats(using: session)
+            async let messageStats = fetchMessageStats(using: session)
+            let noteRecords = try await noteStats
+            let messageRecords = try await messageStats
+            return ProfileStats(noteRecords: noteRecords, messageRecords: messageRecords)
+        } catch {
+            guard Self.isMissingStatsTableError(error) else { throw error }
+            print("Mindrop profile stats fetch skipped: \(error.localizedDescription)")
+            return .empty
+        }
+    }
+
+    private func fetchNoteStats(using session: SupabaseSession) async throws -> [NoteStatRecord] {
+        var components = try urlComponents(path: "/rest/v1/profile_note_stats")
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "user_id", value: "eq.\(session.user.id)"),
+            URLQueryItem(name: "order", value: "created_at.desc")
+        ]
+        guard let url = components.url else { throw SupabaseServiceError.invalidConfiguration }
+        let data = try await perform(try makeRequest(url: url, method: "GET", accessToken: session.accessToken))
+        return try JSONDecoder().decode([RemoteNoteStat].self, from: data).map(\.record)
+    }
+
+    private func fetchMessageStats(using session: SupabaseSession) async throws -> [MessageStatRecord] {
+        var components = try urlComponents(path: "/rest/v1/profile_message_stats")
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "user_id", value: "eq.\(session.user.id)"),
+            URLQueryItem(name: "order", value: "created_at.asc")
+        ]
+        guard let url = components.url else { throw SupabaseServiceError.invalidConfiguration }
+        let data = try await perform(try makeRequest(url: url, method: "GET", accessToken: session.accessToken))
+        return try JSONDecoder().decode([RemoteMessageStat].self, from: data).map(\.record)
     }
 
     private func fetchSettings(using session: SupabaseSession) async throws -> RemoteUserSettings? {
@@ -476,6 +529,27 @@ final class SupabaseService {
         guard !messages.isEmpty else { return }
         let body = messages.map { RemoteChatMessage(message: $0, userID: session.user.id).body }
         var request = try upsertRequest(path: "/rest/v1/chat_messages", accessToken: session.accessToken)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        _ = try await perform(request)
+    }
+
+    private func upsertProfileStats(_ stats: ProfileStats, using session: SupabaseSession) async throws {
+        try await upsertNoteStats(stats.noteRecords, using: session)
+        try await upsertMessageStats(stats.messageRecords, using: session)
+    }
+
+    private func upsertNoteStats(_ records: [NoteStatRecord], using session: SupabaseSession) async throws {
+        guard !records.isEmpty else { return }
+        let body = records.map { RemoteNoteStat(record: $0, userID: session.user.id).body }
+        var request = try upsertRequest(path: "/rest/v1/profile_note_stats", accessToken: session.accessToken)
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        _ = try await perform(request)
+    }
+
+    private func upsertMessageStats(_ records: [MessageStatRecord], using session: SupabaseSession) async throws {
+        guard !records.isEmpty else { return }
+        let body = records.map { RemoteMessageStat(record: $0, userID: session.user.id).body }
+        var request = try upsertRequest(path: "/rest/v1/profile_message_stats", accessToken: session.accessToken)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         _ = try await perform(request)
     }
@@ -553,6 +627,15 @@ final class SupabaseService {
         }
 
         return data
+    }
+
+    private static func isMissingStatsTableError(_ error: Error) -> Bool {
+        let message = ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription).lowercased()
+        let mentionsStatsTable = message.contains("profile_note_stats") || message.contains("profile_message_stats")
+        return mentionsStatsTable &&
+            (message.contains("does not exist") ||
+                message.contains("could not find") ||
+                message.contains("schema cache"))
     }
 }
 
@@ -775,6 +858,105 @@ private struct RemoteChatMessage: Decodable {
             createdAt: Self.date(from: createdAt) ?? .now,
             updatedAt: updatedAt.flatMap(Self.date) ?? Self.date(from: createdAt) ?? .now,
             deletedAt: deletedAt.flatMap(Self.date)
+        )
+    }
+
+    private static func date(from value: String) -> Date? {
+        SupabaseService.isoFormatter.date(from: value) ??
+            SupabaseService.isoFormatterWithoutFractionalSeconds.date(from: value)
+    }
+}
+
+private struct RemoteNoteStat: Decodable {
+    let id: String
+    let createdAt: String
+    let updatedAt: String
+    let statsCategory: String
+    let expenseAmount: Double?
+    let expenseCategory: String?
+    private var userID: String? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case statsCategory = "stats_category"
+        case expenseAmount = "expense_amount"
+        case expenseCategory = "expense_category"
+    }
+
+    init(record: NoteStatRecord, userID: String) {
+        self.userID = userID
+        id = record.noteID.uuidString
+        createdAt = SupabaseService.isoFormatter.string(from: record.createdAt)
+        updatedAt = SupabaseService.isoFormatter.string(from: record.updatedAt)
+        statsCategory = record.category.rawValue
+        expenseAmount = record.expenseAmount.map { NSDecimalNumber(decimal: $0).doubleValue }
+        expenseCategory = record.expenseCategory?.rawValue
+    }
+
+    var body: [String: Any] {
+        [
+            "id": id,
+            "user_id": userID ?? NSNull(),
+            "created_at": createdAt,
+            "updated_at": updatedAt,
+            "stats_category": statsCategory,
+            "expense_amount": expenseAmount ?? NSNull(),
+            "expense_category": expenseCategory ?? NSNull()
+        ]
+    }
+
+    var record: NoteStatRecord {
+        NoteStatRecord(
+            noteID: UUID(uuidString: id) ?? UUID(),
+            createdAt: Self.date(from: createdAt) ?? .now,
+            updatedAt: Self.date(from: updatedAt) ?? Self.date(from: createdAt) ?? .now,
+            category: ThoughtCategory(rawValue: statsCategory) ?? .idea,
+            expenseAmount: expenseAmount.map { Decimal($0) },
+            expenseCategory: expenseCategory.flatMap(ExpenseCategory.init(rawValue:))
+        )
+    }
+
+    private static func date(from value: String) -> Date? {
+        SupabaseService.isoFormatter.date(from: value) ??
+            SupabaseService.isoFormatterWithoutFractionalSeconds.date(from: value)
+    }
+}
+
+private struct RemoteMessageStat: Decodable {
+    let id: String
+    let createdAt: String
+    let updatedAt: String
+    private var userID: String? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    init(record: MessageStatRecord, userID: String) {
+        self.userID = userID
+        id = record.messageID.uuidString
+        createdAt = SupabaseService.isoFormatter.string(from: record.createdAt)
+        updatedAt = SupabaseService.isoFormatter.string(from: record.updatedAt)
+    }
+
+    var body: [String: Any] {
+        [
+            "id": id,
+            "user_id": userID ?? NSNull(),
+            "created_at": createdAt,
+            "updated_at": updatedAt
+        ]
+    }
+
+    var record: MessageStatRecord {
+        MessageStatRecord(
+            messageID: UUID(uuidString: id) ?? UUID(),
+            createdAt: Self.date(from: createdAt) ?? .now,
+            updatedAt: Self.date(from: updatedAt) ?? Self.date(from: createdAt) ?? .now
         )
     }
 

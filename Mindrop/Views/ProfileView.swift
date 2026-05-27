@@ -155,8 +155,7 @@ struct ProfileView: View {
     private var profileMetrics: ProfileMetrics {
         ProfileMetrics.make(
             for: store.selectedRange,
-            notes: store.notes,
-            messages: store.messages
+            stats: store.profileStats
         )
     }
 
@@ -229,23 +228,23 @@ private struct ProfileMetrics {
     let expenseItems: [ExpenseLegendItem]
     let distributionItems: [DistributionLegendItem]
 
-    static func make(for range: TimeRange, notes: [ThoughtNote], messages: [ChatMessage], now: Date = .now) -> ProfileMetrics {
+    static func make(for range: TimeRange, stats: ProfileStats, now: Date = .now) -> ProfileMetrics {
         var calendar = Calendar.current
         calendar.firstWeekday = 2
         let startDate = metricStartDate(for: range, now: now, calendar: calendar)
-        let activeNotes = notes.filter { $0.category != .recycleBin && $0.createdAt >= startDate && $0.createdAt <= now }
-        let userMessages = messages.filter { $0.role == .user && $0.createdAt >= startDate && $0.createdAt <= now }
+        let noteRecords = stats.noteRecords.filter { $0.createdAt >= startDate && $0.createdAt <= now }
+        let messageRecords = stats.messageRecords.filter { $0.createdAt >= startDate && $0.createdAt <= now }
 
         return ProfileMetrics(
-            conversationTotal: userMessages.count,
-            conversationTrend: conversationTrend(for: range, messages: userMessages, startDate: startDate, now: now, calendar: calendar),
-            expenseTotal: expenseTotal(from: activeNotes),
-            expenseItems: expenseItems(from: activeNotes),
-            distributionItems: distributionItems(from: activeNotes)
+            conversationTotal: messageRecords.count,
+            conversationTrend: conversationTrend(for: range, messages: messageRecords, startDate: startDate, now: now, calendar: calendar),
+            expenseTotal: expenseTotal(from: noteRecords),
+            expenseItems: expenseItems(from: noteRecords),
+            distributionItems: distributionItems(from: noteRecords)
         )
     }
 
-    private static func conversationTrend(for range: TimeRange, messages: [ChatMessage], startDate: Date, now: Date, calendar: Calendar) -> [Int] {
+    private static func conversationTrend(for range: TimeRange, messages: [MessageStatRecord], startDate: Date, now: Date, calendar: Calendar) -> [Int] {
         switch range {
         case .seven:
             return dailyTrend(days: 7, messages: messages, startDate: startDate, calendar: calendar)
@@ -269,14 +268,14 @@ private struct ProfileMetrics {
         }
     }
 
-    private static func dailyTrend(days: Int, messages: [ChatMessage], startDate: Date, calendar: Calendar) -> [Int] {
+    private static func dailyTrend(days: Int, messages: [MessageStatRecord], startDate: Date, calendar: Calendar) -> [Int] {
         (0..<days).map { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: startDate) else { return 0 }
             return messages.filter { calendar.isDate($0.createdAt, inSameDayAs: day) }.count
         }
     }
 
-    private static func weeklyTrend(weeks: Int, messages: [ChatMessage], now: Date, calendar: Calendar) -> [Int] {
+    private static func weeklyTrend(weeks: Int, messages: [MessageStatRecord], now: Date, calendar: Calendar) -> [Int] {
         let currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
         return (0..<weeks).map { index in
             guard let weekStart = calendar.date(byAdding: .weekOfYear, value: index - weeks + 1, to: currentWeekStart),
@@ -287,7 +286,7 @@ private struct ProfileMetrics {
         }
     }
 
-    private static func monthlyTrend(messages: [ChatMessage], now: Date, calendar: Calendar) -> [Int] {
+    private static func monthlyTrend(messages: [MessageStatRecord], now: Date, calendar: Calendar) -> [Int] {
         let currentMonth = calendar.dateInterval(of: .month, for: now)?.start ?? now
         return (0..<12).reversed().map { offset in
             guard let monthStart = calendar.date(byAdding: .month, value: -offset, to: currentMonth),
@@ -298,7 +297,7 @@ private struct ProfileMetrics {
         }
     }
 
-    private static func expenseTotal(from notes: [ThoughtNote]) -> Int {
+    private static func expenseTotal(from notes: [NoteStatRecord]) -> Int {
         let total = notes
             .filter { $0.category == .bill }
             .compactMap(\.expenseAmount)
@@ -306,7 +305,7 @@ private struct ProfileMetrics {
         return Int(NSDecimalNumber(decimal: total).rounding(accordingToBehavior: nil).intValue)
     }
 
-    private static func expenseItems(from notes: [ThoughtNote]) -> [ExpenseLegendItem] {
+    private static func expenseItems(from notes: [NoteStatRecord]) -> [ExpenseLegendItem] {
         let totalsByCategory = Dictionary(grouping: notes.filter { $0.category == .bill }) { note in
             note.expenseCategory ?? .other
         }
@@ -328,7 +327,7 @@ private struct ProfileMetrics {
         .sortedByPercentDescending()
     }
 
-    private static func distributionItems(from notes: [ThoughtNote]) -> [DistributionLegendItem] {
+    private static func distributionItems(from notes: [NoteStatRecord]) -> [DistributionLegendItem] {
         let categories: [ThoughtCategory] = [.todo, .qa, .idea, .bill]
         let counts = Dictionary(grouping: notes, by: \.category).mapValues(\.count)
         let total = categories.reduce(0) { $0 + (counts[$1] ?? 0) }

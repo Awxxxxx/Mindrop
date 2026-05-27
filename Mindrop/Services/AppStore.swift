@@ -10,6 +10,7 @@ final class AppStore: ObservableObject {
     @Published var selectedRange: TimeRange = .seven
     @Published var notes: [ThoughtNote] = [] { didSet { persistIfReady(markCloudDirty: true) } }
     @Published var messages: [ChatMessage] = [] { didSet { persistIfReady(markCloudDirty: true) } }
+    @Published var profileStats: ProfileStats = .empty { didSet { persistIfReady(markCloudDirty: true) } }
     @Published var hasTrimmedChatHistory = false { didSet { persistIfReady(markCloudDirty: true) } }
     @Published var profile = UserProfile.loggedOut { didSet { persistIfReady(markCloudDirty: false) } }
     @Published var followsSystemAppearance = true { didSet { persistIfReady(markCloudDirty: true) } }
@@ -21,6 +22,7 @@ final class AppStore: ObservableObject {
     let notificationScheduler = NotificationScheduler()
 
     private let chatHistoryLimit = 100
+    private let qaNoteLimit = 100
     private let expiredReminderRecycleInterval: TimeInterval = 24 * 60 * 60
     private let aiService = AIService()
     private let supabaseService = SupabaseService.shared
@@ -49,6 +51,7 @@ final class AppStore: ObservableObject {
             deletedNotes = snapshot.deletedNotes + snapshot.notes.filter { $0.deletedAt != nil }
             messages = snapshot.messages.filter { $0.deletedAt == nil }
             deletedMessages = snapshot.deletedMessages + snapshot.messages.filter { $0.deletedAt != nil }
+            profileStats = snapshot.profileStats
             hasTrimmedChatHistory = snapshot.hasTrimmedChatHistory
             hasPendingCloudChanges = snapshot.hasPendingCloudChanges
             profile = snapshot.profile
@@ -58,6 +61,12 @@ final class AppStore: ObservableObject {
             seed()
         }
         migrateDefaultMeetingSampleReminder()
+        if backfillProfileStatsFromCurrentData() {
+            hasPendingCloudChanges = true
+        }
+        if enforceQANoteLimit() {
+            hasPendingCloudChanges = true
+        }
         selectedTab = .history
         selectedCategory = .todo
         isRestoring = false
@@ -291,6 +300,8 @@ final class AppStore: ObservableObject {
             } else {
                 let note = makeNote(from: result)
                 notes.insert(note, at: 0)
+                recordNoteForStats(note)
+                enforceQANoteLimit()
                 appendChatMessage(ChatMessage(role: .assistant, text: result.reply, category: result.category, noteID: note.id))
             }
             selectedCategory = .qa
@@ -299,6 +310,8 @@ final class AppStore: ObservableObject {
 
         let note = makeNote(from: result)
         notes.insert(note, at: 0)
+        recordNoteForStats(note)
+        enforceQANoteLimit()
         if note.reminderAt != nil {
             scheduleReminderAndPrepareText(for: note, forceRefresh: true)
         }
@@ -326,6 +339,7 @@ final class AppStore: ObservableObject {
         note.updatedAt = .now
         note.deletedAt = nil
         notes[index] = note
+        recordNoteForStats(note)
 
         if reminderAt > .now {
             scheduleReminderAndPrepareText(for: note, forceRefresh: true)
@@ -361,6 +375,8 @@ final class AppStore: ObservableObject {
         note.updatedAt = .now
         note.deletedAt = nil
         notes[index] = note
+        recordNoteForStats(note)
+        enforceQANoteLimit()
         return true
     }
 
@@ -396,6 +412,9 @@ final class AppStore: ObservableObject {
             draft.recycledAt = .now
             draft.category = .recycleBin
         }
+        if let updatedNote = notes.first(where: { $0.id == note.id }) {
+            recordNoteForStats(updatedNote)
+        }
         notificationScheduler.cancelReminder(for: note.id)
     }
 
@@ -422,6 +441,8 @@ final class AppStore: ObservableObject {
         } else {
             notificationScheduler.cancelReminder(for: note.id)
         }
+        recordNoteForStats(updatedNote)
+        enforceQANoteLimit()
         showToast("已移动至“\(category.rawValue)”")
     }
 
@@ -451,6 +472,8 @@ final class AppStore: ObservableObject {
         if restoredNote.category == .todo, let reminderAt = restoredNote.reminderAt, reminderAt > .now {
             scheduleReminderAndPrepareText(for: restoredNote)
         }
+        recordNoteForStats(restoredNote)
+        enforceQANoteLimit()
         showToast("已还原至“\(restoredNote.category.rawValue)”")
     }
 
@@ -490,6 +513,7 @@ final class AppStore: ObservableObject {
             updatedNotes[index].category = .recycleBin
             updatedNotes[index].updatedAt = now
             updatedNotes[index].deletedAt = nil
+            recordNoteForStats(updatedNotes[index])
             recycledNoteIDs.append(updatedNotes[index].id)
         }
 
@@ -520,6 +544,8 @@ final class AppStore: ObservableObject {
         updatedNote.updatedAt = .now
         updatedNote.deletedAt = nil
         notes[index] = updatedNote
+        recordNoteForStats(updatedNote)
+        enforceQANoteLimit()
         if updatedNote.category == .todo, let reminderAt = updatedNote.reminderAt, reminderAt > .now {
             scheduleReminderAndPrepareText(for: updatedNote, forceRefresh: true)
         } else {
@@ -591,6 +617,7 @@ final class AppStore: ObservableObject {
             category: .idea
         )
         notes.insert(note, at: 0)
+        recordNoteForStats(note)
         showToast("已保存至灵感沉淀")
     }
 
@@ -614,6 +641,7 @@ final class AppStore: ObservableObject {
     }
 
     private func rememberDeletedNote(_ note: ThoughtNote) {
+        recordNoteForStats(note)
         var tombstone = note
         let deletedAt = Date()
         tombstone.deletedAt = deletedAt
@@ -628,6 +656,7 @@ final class AppStore: ObservableObject {
     }
 
     private func rememberDeletedMessage(_ message: ChatMessage) {
+        recordMessageForStats(message)
         var tombstone = message
         let deletedAt = Date()
         tombstone.deletedAt = deletedAt
@@ -639,6 +668,133 @@ final class AppStore: ObservableObject {
         } else {
             deletedMessages.append(tombstone)
         }
+    }
+
+    @discardableResult
+    private func backfillProfileStatsFromCurrentData() -> Bool {
+        let sampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
+        var stats = profileStats
+
+        for note in notes + deletedNotes where !Self.isBuiltInSampleNote(note) {
+            guard let record = Self.noteStatRecord(for: note) else { continue }
+            Self.upsertNoteStat(record, into: &stats)
+        }
+
+        for message in messages + deletedMessages where !Self.shouldSkipMessageStatBackfill(message, sampleMessageIDs: sampleMessageIDs) {
+            guard let record = Self.messageStatRecord(for: message) else { continue }
+            Self.upsertMessageStat(record, into: &stats)
+        }
+
+        stats = Self.normalizedProfileStats(stats)
+        guard stats != profileStats else { return false }
+        profileStats = stats
+        return true
+    }
+
+    private func recordNoteForStats(_ note: ThoughtNote) {
+        guard !Self.isBuiltInSampleNote(note),
+              let record = Self.noteStatRecord(for: note) else {
+            return
+        }
+
+        var stats = profileStats
+        Self.upsertNoteStat(record, into: &stats)
+        stats = Self.normalizedProfileStats(stats)
+        if stats != profileStats {
+            profileStats = stats
+        }
+    }
+
+    private func recordMessageForStats(_ message: ChatMessage) {
+        guard let record = Self.messageStatRecord(for: message) else { return }
+
+        var stats = profileStats
+        Self.upsertMessageStat(record, into: &stats)
+        stats = Self.normalizedProfileStats(stats)
+        if stats != profileStats {
+            profileStats = stats
+        }
+    }
+
+    private static func noteStatRecord(for note: ThoughtNote) -> NoteStatRecord? {
+        guard let category = statsCategory(for: note) else { return nil }
+        return NoteStatRecord(
+            noteID: note.id,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+            category: category,
+            expenseAmount: category == .bill ? note.expenseAmount : nil,
+            expenseCategory: category == .bill ? (note.expenseCategory ?? .other) : nil
+        )
+    }
+
+    private static func messageStatRecord(for message: ChatMessage) -> MessageStatRecord? {
+        guard message.role == .user else { return nil }
+        return MessageStatRecord(
+            messageID: message.id,
+            createdAt: message.createdAt,
+            updatedAt: message.updatedAt
+        )
+    }
+
+    private static func shouldSkipMessageStatBackfill(_ message: ChatMessage, sampleMessageIDs: Set<UUID>) -> Bool {
+        sampleMessageIDs.contains(message.id) ||
+            (message.deletedAt != nil && builtInSampleMessageTemplateIndex(for: message) != nil)
+    }
+
+    private static func statsCategory(for note: ThoughtNote) -> ThoughtCategory? {
+        if note.category != .recycleBin {
+            return note.category
+        }
+
+        if let category = note.categoryBeforeRecycle, category != .recycleBin {
+            return category
+        }
+        if note.expenseAmount != nil || note.expenseCategory != nil {
+            return .bill
+        }
+        if note.reminderAt != nil {
+            return .todo
+        }
+        return .idea
+    }
+
+    private static func mergedProfileStats(_ local: ProfileStats, _ remote: ProfileStats) -> ProfileStats {
+        var stats = local
+        for record in remote.noteRecords {
+            upsertNoteStat(record, into: &stats)
+        }
+        for record in remote.messageRecords {
+            upsertMessageStat(record, into: &stats)
+        }
+        return normalizedProfileStats(stats)
+    }
+
+    private static func upsertNoteStat(_ record: NoteStatRecord, into stats: inout ProfileStats) {
+        if let index = stats.noteRecords.firstIndex(where: { $0.noteID == record.noteID }) {
+            if record.updatedAt >= stats.noteRecords[index].updatedAt {
+                stats.noteRecords[index] = record
+            }
+        } else {
+            stats.noteRecords.append(record)
+        }
+    }
+
+    private static func upsertMessageStat(_ record: MessageStatRecord, into stats: inout ProfileStats) {
+        if let index = stats.messageRecords.firstIndex(where: { $0.messageID == record.messageID }) {
+            if record.updatedAt >= stats.messageRecords[index].updatedAt {
+                stats.messageRecords[index] = record
+            }
+        } else {
+            stats.messageRecords.append(record)
+        }
+    }
+
+    private static func normalizedProfileStats(_ stats: ProfileStats) -> ProfileStats {
+        ProfileStats(
+            noteRecords: stats.noteRecords.sorted { $0.createdAt > $1.createdAt },
+            messageRecords: stats.messageRecords.sorted { $0.createdAt < $1.createdAt }
+        )
     }
 
     private func observeRemotePushTokenUpdates() {
@@ -939,6 +1095,7 @@ final class AppStore: ObservableObject {
             deletedNotes: deletedNotes,
             messages: messages,
             deletedMessages: deletedMessages,
+            profileStats: profileStats,
             hasTrimmedChatHistory: hasTrimmedChatHistory,
             hasPendingCloudChanges: hasPendingCloudChanges,
             profile: profile,
@@ -1107,15 +1264,18 @@ final class AppStore: ObservableObject {
         )
         messages = mergedMessages.active
         deletedMessages = mergedMessages.deleted
+        profileStats = Self.mergedProfileStats(profileStats, snapshot.profileStats)
         hasTrimmedChatHistory = snapshot.hasTrimmedChatHistory
         profile = snapshot.profile
         followsSystemAppearance = snapshot.followsSystemAppearance
         enforceChatHistoryLimit()
+        let didEnforceQALimit = enforceQANoteLimit()
         _ = migrateDefaultMeetingSampleReminder()
+        let didBackfillStats = backfillProfileStatsFromCurrentData()
         isApplyingRemoteSnapshot = false
 
         PersistenceStore.save(currentSnapshot())
-        if shouldUploadMergedData {
+        if shouldUploadMergedData || didEnforceQALimit || didBackfillStats {
             markPendingCloudChanges()
             PersistenceStore.save(currentSnapshot())
             scheduleCloudSync()
@@ -1157,14 +1317,21 @@ final class AppStore: ObservableObject {
         )
         messages = mergedMessages.active
         deletedMessages = mergedMessages.deleted
+        profileStats = Self.mergedProfileStats(profileStats, data.profileStats)
         hasTrimmedChatHistory = data.hasTrimmedChatHistory
         followsSystemAppearance = data.followsSystemAppearance
         enforceChatHistoryLimit()
+        let didEnforceQALimit = enforceQANoteLimit()
         _ = migrateDefaultMeetingSampleReminder()
+        let didBackfillStats = backfillProfileStatsFromCurrentData()
         isApplyingRemoteSnapshot = false
 
         PersistenceStore.save(currentSnapshot())
-        if shouldResumePendingSync {
+        if didEnforceQALimit || didBackfillStats {
+            markPendingCloudChanges()
+            PersistenceStore.save(currentSnapshot())
+            scheduleCloudSync()
+        } else if shouldResumePendingSync {
             scheduleCloudSync(delayMilliseconds: 1_500)
         }
         Task {
@@ -1229,6 +1396,8 @@ final class AppStore: ObservableObject {
             !deletedNotes.isEmpty ||
             messages.contains { !sampleMessageIDs.contains($0.id) } ||
             !deletedMessages.isEmpty ||
+            !profileStats.noteRecords.isEmpty ||
+            !profileStats.messageRecords.isEmpty ||
             hasTrimmedChatHistory ||
             !followsSystemAppearance
     }
@@ -1253,11 +1422,12 @@ final class AppStore: ObservableObject {
         let sampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
         let messages = messages.filter { !sampleMessageIDs.contains($0.id) }
         let deletedMessages = deletedMessages
+        let profileStats = profileStats
         let hasTrimmedChatHistory = hasTrimmedChatHistory
         let followsSystemAppearance = followsSystemAppearance
         let syncRevision = cloudSyncRevision
         cloudSyncTask?.cancel()
-        cloudSyncTask = Task { [weak self, supabaseService, authSession, notes, deletedNotes, messages, deletedMessages, hasTrimmedChatHistory, followsSystemAppearance, delayMilliseconds, syncRevision] in
+        cloudSyncTask = Task { [weak self, supabaseService, authSession, notes, deletedNotes, messages, deletedMessages, profileStats, hasTrimmedChatHistory, followsSystemAppearance, delayMilliseconds, syncRevision] in
             do {
                 if delayMilliseconds > 0 {
                     try await Task.sleep(nanoseconds: delayMilliseconds * 1_000_000)
@@ -1267,6 +1437,7 @@ final class AppStore: ObservableObject {
                     deletedNotes: deletedNotes,
                     messages: messages,
                     deletedMessages: deletedMessages,
+                    profileStats: profileStats,
                     hasTrimmedChatHistory: hasTrimmedChatHistory,
                     followsSystemAppearance: followsSystemAppearance,
                     using: authSession
@@ -1325,6 +1496,7 @@ final class AppStore: ObservableObject {
     }
 
     private func appendChatMessage(_ message: ChatMessage) {
+        recordMessageForStats(message)
         var updatedMessages = messages
         updatedMessages.append(message)
         if updatedMessages.count > chatHistoryLimit {
@@ -1344,6 +1516,20 @@ final class AppStore: ObservableObject {
         messages.prefix(overflow).forEach { rememberDeletedMessage($0) }
         messages = Array(messages.dropFirst(overflow))
         hasTrimmedChatHistory = true
+    }
+
+    @discardableResult
+    private func enforceQANoteLimit() -> Bool {
+        let qaNotes = notes
+            .filter { $0.category == .qa }
+            .sorted { $0.createdAt > $1.createdAt }
+        guard qaNotes.count > qaNoteLimit else { return false }
+
+        let removedIDs = Set(qaNotes.dropFirst(qaNoteLimit).map(\.id))
+        let removedNotes = notes.filter { removedIDs.contains($0.id) }
+        removedNotes.forEach { rememberDeletedNote($0) }
+        notes.removeAll { removedIDs.contains($0.id) }
+        return true
     }
 
     private func rescheduleFutureReminders() async {
