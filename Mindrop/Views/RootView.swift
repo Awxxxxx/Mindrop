@@ -30,6 +30,7 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
+                store.recycleExpiredReminders()
                 guard store.session == .authenticated else { return }
                 Task {
                     await store.refreshCloudDataFromServer()

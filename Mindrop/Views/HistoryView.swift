@@ -85,11 +85,15 @@ struct HistoryView: View {
                 .presentationCornerRadius(28)
         }
         .onAppear {
+            store.recycleExpiredReminders()
             store.purgeExpiredRecycleBinNotes()
             replayNoteAnimations()
         }
         .onChange(of: store.selectedCategory) { _, category in
             resetBillFilters()
+            if category == .todo {
+                store.recycleExpiredReminders()
+            }
             if category == .recycleBin {
                 store.purgeExpiredRecycleBinNotes()
             }

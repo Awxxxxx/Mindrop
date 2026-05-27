@@ -21,6 +21,7 @@ final class AppStore: ObservableObject {
     let notificationScheduler = NotificationScheduler()
 
     private let chatHistoryLimit = 100
+    private let expiredReminderRecycleInterval: TimeInterval = 24 * 60 * 60
     private let aiService = AIService()
     private let supabaseService = SupabaseService.shared
     private var isRestoring = true
@@ -60,6 +61,7 @@ final class AppStore: ObservableObject {
         selectedTab = .history
         selectedCategory = .todo
         isRestoring = false
+        recycleExpiredReminders()
         observeRemotePushTokenUpdates()
         persistIfReady(markCloudDirty: false)
 
@@ -89,6 +91,7 @@ final class AppStore: ObservableObject {
             }
             let remoteData = try await supabaseService.fetchAppData(using: authSession)
             applyRemoteAppData(remoteData)
+            recycleExpiredReminders()
         } catch {
             print("Mindrop cloud refresh failed: \(error.localizedDescription)")
         }
@@ -123,6 +126,7 @@ final class AppStore: ObservableObject {
             selectedCategory = .todo
             removeBuiltInSampleDataFromCurrentState()
             await syncRemoteDataOrMigrateLegacy(using: authSession)
+            recycleExpiredReminders()
             await syncCloudProfile(using: authSession)
             await registerForRemotePushIfPossible()
             showToast("登录成功，已开启云同步")
@@ -162,6 +166,7 @@ final class AppStore: ObservableObject {
                 removeBuiltInSampleDataFromCurrentState()
                 await syncCloudProfile(using: authSession)
                 await registerForRemotePushIfPossible()
+                recycleExpiredReminders()
                 queueCloudSyncIfNeeded()
                 showToast("注册成功，已开启云同步")
             } else {
@@ -466,6 +471,37 @@ final class AppStore: ObservableObject {
             .forEach { rememberDeletedNote($0) }
         notes.removeAll { expiredIDs.contains($0.id) }
         expiredIDs.forEach { notificationScheduler.cancelReminder(for: $0) }
+    }
+
+    func recycleExpiredReminders(now: Date = .now) {
+        let deadline = now.addingTimeInterval(-expiredReminderRecycleInterval)
+        var updatedNotes = notes
+        var recycledNoteIDs: [UUID] = []
+
+        for index in updatedNotes.indices {
+            guard updatedNotes[index].category == .todo,
+                  let reminderAt = updatedNotes[index].reminderAt,
+                  reminderAt <= deadline else {
+                continue
+            }
+
+            updatedNotes[index].categoryBeforeRecycle = .todo
+            updatedNotes[index].recycledAt = now
+            updatedNotes[index].category = .recycleBin
+            updatedNotes[index].updatedAt = now
+            updatedNotes[index].deletedAt = nil
+            recycledNoteIDs.append(updatedNotes[index].id)
+        }
+
+        guard !recycledNoteIDs.isEmpty else { return }
+        recycledNoteIDs.forEach { notificationScheduler.cancelReminder(for: $0) }
+        let shouldForceCloudSync = isPreparingCloudSession
+        notes = updatedNotes
+        if shouldForceCloudSync {
+            markPendingCloudChanges()
+            PersistenceStore.save(currentSnapshot())
+            scheduleCloudSync()
+        }
     }
 
     func updateNote(_ note: ThoughtNote) {
@@ -939,6 +975,7 @@ final class AppStore: ObservableObject {
             selectedCategory = .todo
             removeBuiltInSampleDataFromCurrentState()
             await syncRemoteDataOrMigrateLegacy(using: authSession)
+            recycleExpiredReminders()
             await syncCloudProfile(using: authSession)
             await registerForRemotePushIfPossible()
         } catch {
@@ -1592,7 +1629,7 @@ final class AppStore: ObservableObject {
             ThoughtNote(title: "水支出", content: "餐饮分类，买了一瓶水花了 1 块钱。", category: .bill, expenseAmount: 1, expenseCategory: .food),
             ThoughtNote(title: "语音记录 App", content: "面向碎片念头的语音收件箱，自动总结并归档。", category: .idea, isPinned: true),
             ThoughtNote(title: "iPhone 截长图", content: "在 Safari 截图后切换到整页，并保存为 PDF。", category: .qa),
-            ThoughtNote(title: "旧会议提醒", content: "已超过提醒时间 48 小时，自动进入回收站。", category: .recycleBin)
+            ThoughtNote(title: "旧会议提醒", content: "已超过提醒时间 24 小时，自动进入回收站。", category: .recycleBin)
         ]
 
         messages = [
@@ -1630,7 +1667,8 @@ final class AppStore: ObservableObject {
              ("水支出", "餐饮分类，买了一瓶水花了 1 块钱。", .bill),
              ("语音记录 App", "面向碎片念头的语音收件箱，自动总结并归档。", .idea),
              ("iPhone 截长图", "在 Safari 截图后切换到整页，并保存为 PDF。", .qa),
-             ("旧会议提醒", "已超过提醒时间 48 小时，自动进入回收站。", .recycleBin):
+             ("旧会议提醒", "已超过提醒时间 48 小时，自动进入回收站。", .recycleBin),
+             ("旧会议提醒", "已超过提醒时间 24 小时，自动进入回收站。", .recycleBin):
             return true
         default:
             return false
