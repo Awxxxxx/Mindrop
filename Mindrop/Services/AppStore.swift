@@ -912,9 +912,10 @@ final class AppStore: ObservableObject {
 
     private func removeBuiltInSampleDataFromCurrentState() {
         let sampleNoteIDs = notes.filter(Self.isBuiltInSampleNote).map(\.id)
+        let sampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
         sampleNoteIDs.forEach { notificationScheduler.cancelReminder(for: $0) }
         notes.removeAll(where: Self.isBuiltInSampleNote)
-        messages.removeAll(where: Self.isBuiltInSampleMessage)
+        messages.removeAll { sampleMessageIDs.contains($0.id) }
     }
 
     private func restoreSupabaseSession() async {
@@ -1048,8 +1049,10 @@ final class AppStore: ObservableObject {
         let remoteSampleNoteTombstones = snapshot.notes
             .filter(Self.isBuiltInSampleNote)
             .map { Self.deletedBuiltInSampleNote($0, deletedAt: sampleDeletedAt) }
+        let localSampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
+        let remoteSampleMessageIDs = Self.builtInSampleMessageIDs(in: snapshot.messages)
         let remoteSampleMessageTombstones = snapshot.messages
-            .filter(Self.isBuiltInSampleMessage)
+            .filter { remoteSampleMessageIDs.contains($0.id) }
             .map { Self.deletedBuiltInSampleMessage($0, deletedAt: sampleDeletedAt) }
         let mergedNotes = mergeNotes(
             localActive: notes.filter { !Self.isBuiltInSampleNote($0) },
@@ -1060,9 +1063,9 @@ final class AppStore: ObservableObject {
         notes = mergedNotes.active
         deletedNotes = mergedNotes.deleted
         let mergedMessages = mergeMessages(
-            localActive: messages.filter { !Self.isBuiltInSampleMessage($0) },
+            localActive: messages.filter { !localSampleMessageIDs.contains($0.id) },
             localDeleted: deletedMessages,
-            remoteActive: snapshot.messages.filter { $0.deletedAt == nil && !Self.isBuiltInSampleMessage($0) },
+            remoteActive: snapshot.messages.filter { $0.deletedAt == nil && !remoteSampleMessageIDs.contains($0.id) },
             remoteDeleted: snapshot.deletedMessages + snapshot.messages.filter { $0.deletedAt != nil } + remoteSampleMessageTombstones
         )
         messages = mergedMessages.active
@@ -1096,8 +1099,10 @@ final class AppStore: ObservableObject {
         let remoteSampleNoteTombstones = data.notes
             .filter(Self.isBuiltInSampleNote)
             .map { Self.deletedBuiltInSampleNote($0, deletedAt: sampleDeletedAt) }
+        let localSampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
+        let remoteSampleMessageIDs = Self.builtInSampleMessageIDs(in: data.messages)
         let remoteSampleMessageTombstones = data.messages
-            .filter(Self.isBuiltInSampleMessage)
+            .filter { remoteSampleMessageIDs.contains($0.id) }
             .map { Self.deletedBuiltInSampleMessage($0, deletedAt: sampleDeletedAt) }
         let mergedNotes = mergeNotes(
             localActive: notes.filter { !Self.isBuiltInSampleNote($0) },
@@ -1108,9 +1113,9 @@ final class AppStore: ObservableObject {
         notes = mergedNotes.active
         deletedNotes = mergedNotes.deleted
         let mergedMessages = mergeMessages(
-            localActive: messages.filter { !Self.isBuiltInSampleMessage($0) },
+            localActive: messages.filter { !localSampleMessageIDs.contains($0.id) },
             localDeleted: deletedMessages,
-            remoteActive: data.messages.filter { !Self.isBuiltInSampleMessage($0) },
+            remoteActive: data.messages.filter { !remoteSampleMessageIDs.contains($0.id) },
             remoteDeleted: data.deletedMessages + remoteSampleMessageTombstones
         )
         messages = mergedMessages.active
@@ -1182,9 +1187,10 @@ final class AppStore: ObservableObject {
     }
 
     private var hasSyncableCloudContent: Bool {
-        notes.contains { !Self.isBuiltInSampleNote($0) } ||
+        let sampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
+        return notes.contains { !Self.isBuiltInSampleNote($0) } ||
             !deletedNotes.isEmpty ||
-            messages.contains { !Self.isBuiltInSampleMessage($0) } ||
+            messages.contains { !sampleMessageIDs.contains($0.id) } ||
             !deletedMessages.isEmpty ||
             hasTrimmedChatHistory ||
             !followsSystemAppearance
@@ -1207,7 +1213,8 @@ final class AppStore: ObservableObject {
         guard hasPendingCloudChanges else { return }
         let notes = notes.filter { !Self.isBuiltInSampleNote($0) }
         let deletedNotes = deletedNotes
-        let messages = messages.filter { !Self.isBuiltInSampleMessage($0) }
+        let sampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
+        let messages = messages.filter { !sampleMessageIDs.contains($0.id) }
         let deletedMessages = deletedMessages
         let hasTrimmedChatHistory = hasTrimmedChatHistory
         let followsSystemAppearance = followsSystemAppearance
@@ -1630,15 +1637,53 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private static func isBuiltInSampleMessage(_ message: ChatMessage) -> Bool {
+    private static func builtInSampleMessageIDs(in messages: [ChatMessage]) -> Set<UUID> {
+        // Only remove the seeded onboarding chat when the whole template appears together.
+        let candidates = messages
+            .filter { $0.deletedAt == nil }
+            .compactMap { message -> (message: ChatMessage, templateIndex: Int)? in
+                guard let templateIndex = builtInSampleMessageTemplateIndex(for: message) else { return nil }
+                return (message, templateIndex)
+            }
+            .sorted { lhs, rhs in
+                if lhs.message.createdAt != rhs.message.createdAt {
+                    return lhs.message.createdAt < rhs.message.createdAt
+                }
+                return lhs.templateIndex < rhs.templateIndex
+            }
+
+        for startIndex in candidates.indices where candidates[startIndex].templateIndex == 0 {
+            let start = candidates[startIndex]
+            var selected: [Int: ChatMessage] = [0: start.message]
+
+            for candidate in candidates.dropFirst(startIndex + 1) {
+                guard candidate.message.createdAt.timeIntervalSince(start.message.createdAt) <= 10 else { break }
+                guard candidate.templateIndex == selected.count else { continue }
+
+                selected[candidate.templateIndex] = candidate.message
+                if selected.count == builtInSampleMessageTemplateCount {
+                    return Set(selected.values.map(\.id))
+                }
+            }
+        }
+
+        return []
+    }
+
+    private static var builtInSampleMessageTemplateCount: Int { 4 }
+
+    private static func builtInSampleMessageTemplateIndex(for message: ChatMessage) -> Int? {
         switch (message.role, message.text, message.category) {
-        case (.user, "明天下午三点提醒我开会，并准备周报数据", nil),
-             (.assistant, "已总结并收纳至“待办提醒”板块", .todo),
-             (.user, "iPhone 怎么截长图？", nil),
-             (.assistant, "可以在 Safari 或支持滚动截图的页面截图后，切换到“整页”并保存为 PDF。", .qa):
-            return true
+        case (.user, "明天下午三点提醒我开会，并准备周报数据", nil):
+            return 0
+        case (.assistant, "已总结并收纳至“待办提醒”板块", .todo):
+            return 1
+        case (.user, "iPhone 怎么截长图？", nil):
+            return 2
+        case (.assistant, "可以在 Safari 或支持滚动截图的页面截图后，切换到“整页”并保存为 PDF。", .qa):
+            return 3
         default:
-            return false
+            return nil
         }
     }
 
