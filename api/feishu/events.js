@@ -91,9 +91,13 @@ export default async function handler(request, response) {
 
   try {
     const claimed = await claimEventRecord(config, connection, event);
-    if (!claimed) {
-      response.status(200).json({ ok: true, duplicate: true });
+    if (!claimed.shouldProcess) {
+      logFeishuStage("duplicate_skipped", connection, event, { status: claimed.status });
+      response.status(200).json({ ok: true, duplicate: true, status: claimed.status });
       return;
+    }
+    if (claimed.resumed) {
+      logFeishuStage("duplicate_resumed", connection, event, { status: claimed.status });
     }
 
     const processResult = await processMessageEvent(config, connection, event);
@@ -177,6 +181,7 @@ async function processMessageEvent(config, connection, event) {
   const typingReactionID = await addFeishuTypingReaction(connection, event);
   try {
     const now = new Date();
+    const messageIDs = feishuMessageIDs(connection, event);
     const context = await fetchRecentContext(config, connection.userID);
     const reminders = await fetchReminderCandidates(config, connection.userID);
     const qaNotes = await fetchQACandidates(config, connection.userID);
@@ -186,9 +191,10 @@ async function processMessageEvent(config, connection, event) {
       text,
       category: null,
       noteID: null,
-      id: deterministicUUID("feishu", connection.id, event.messageID, "user"),
+      id: messageIDs.user,
       now,
     });
+    logFeishuStage("user_message_inserted", connection, event);
 
     const analysis = await analyzeText({
       text,
@@ -198,22 +204,29 @@ async function processMessageEvent(config, connection, event) {
       reminders,
       qaNotes,
     });
+    logFeishuStage("ai_analyzed", connection, event, {
+      action: analysis.action || "createNote",
+      category: analysis.category,
+      replyChars: String(analysis.reply || "").length,
+    });
     const noteID = await applyAnalysis(
       config,
       connection.userID,
       analysis,
       now,
-      deterministicUUID("feishu", connection.id, event.messageID, "note")
+      messageIDs.note
     );
+    logFeishuStage("note_applied", connection, event, { noteID });
     await insertChatMessage(config, {
       userID: connection.userID,
       role: "assistant",
       text: analysis.reply,
       category: categoryToRawValue(analysis.category),
       noteID,
-      id: deterministicUUID("feishu", connection.id, event.messageID, "assistant"),
+      id: messageIDs.assistant,
       now: new Date(),
     });
+    logFeishuStage("assistant_message_inserted", connection, event, { noteID });
     await replyToFeishuMessage(connection, event, analysis.reply);
     return { status: "processed", userID: connection.userID };
   } finally {
@@ -678,15 +691,17 @@ async function insertFailureChatMessage(config, connection, event) {
   if (connection.status !== "paired" || connection.pairedOpenID !== event.openID) {
     return;
   }
+  const messageIDs = feishuMessageIDs(connection, event);
   await insertChatMessage(config, {
     userID: connection.userID,
     role: "assistant",
     text: PROCESSING_FAILED_REPLY,
     category: null,
     noteID: null,
-    id: deterministicUUID("feishu", connection.id, event.messageID, "assistant-error"),
+    id: messageIDs.assistantError,
     now: new Date(),
   });
+  logFeishuStage("failure_message_inserted", connection, event);
 }
 
 async function claimEventRecord(config, connection, event) {
@@ -706,7 +721,33 @@ async function claimEventRecord(config, connection, event) {
       error: null,
     }),
   });
-  return created?.[0] || null;
+  if (created?.[0]) {
+    return { shouldProcess: true, resumed: false, status: "processing" };
+  }
+
+  const existing = await fetchEventRecord(config, event.eventID);
+  if (shouldResumeEventRecord(existing)) {
+    return { shouldProcess: true, resumed: true, status: existing?.status || "unknown" };
+  }
+
+  return { shouldProcess: false, resumed: false, status: existing?.status || "duplicate" };
+}
+
+async function fetchEventRecord(config, eventID) {
+  const query = new URLSearchParams({
+    select: "event_id,status,error,processed_at,received_at,user_id",
+    event_id: `eq.${eventID}`,
+    limit: "1",
+  });
+  const rows = await supabaseFetch(config, `/rest/v1/feishu_message_events?${query}`);
+  return rows?.[0] || null;
+}
+
+function shouldResumeEventRecord(record) {
+  if (!record) {
+    return true;
+  }
+  return record.status === "processing" || record.status === "error";
 }
 
 async function markEventRecord(config, eventID, status, options = {}) {
@@ -961,6 +1002,15 @@ function textOrFallback(value, fallback) {
   return text.length > 0 ? text : fallback;
 }
 
+function feishuMessageIDs(connection, event) {
+  return {
+    user: deterministicUUID("feishu", connection.id, event.messageID, "user"),
+    assistant: deterministicUUID("feishu", connection.id, event.messageID, "assistant"),
+    assistantError: deterministicUUID("feishu", connection.id, event.messageID, "assistant-error"),
+    note: deterministicUUID("feishu", connection.id, event.messageID, "note"),
+  };
+}
+
 function deterministicUUID(...parts) {
   const hash = crypto
     .createHash("sha256")
@@ -990,6 +1040,23 @@ function sanitizeText(value) {
 
 function trimTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
+}
+
+function logFeishuStage(stage, connection, event, details = {}) {
+  console.info(JSON.stringify({
+    event: "mindrop_feishu_stage",
+    stage,
+    connectionID: shortID(connection?.id),
+    userID: shortID(connection?.userID),
+    eventID: shortID(event?.eventID),
+    messageID: shortID(event?.messageID),
+    ...details,
+  }));
+}
+
+function shortID(value) {
+  const text = String(value || "");
+  return text.length > 8 ? text.slice(-8) : text;
 }
 
 function safeError(error) {
