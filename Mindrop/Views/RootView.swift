@@ -28,10 +28,17 @@ struct RootView: View {
             await store.refreshRemotePushRegistration()
         }
         .onChange(of: scenePhase) { _, phase in
-            guard phase == .active, store.session == .authenticated else { return }
-            Task {
-                await store.refreshCloudDataFromServer()
-                await store.refreshRemotePushRegistration()
+            switch phase {
+            case .active:
+                guard store.session == .authenticated else { return }
+                Task {
+                    await store.refreshCloudDataFromServer()
+                    await store.refreshRemotePushRegistration()
+                }
+            case .inactive, .background:
+                store.flushPendingLocalChanges()
+            @unknown default:
+                break
             }
         }
     }

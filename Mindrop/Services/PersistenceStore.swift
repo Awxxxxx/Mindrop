@@ -68,6 +68,11 @@ enum PersistenceStore {
         UserDefaults.standard.set(data, forKey: snapshotKey)
     }
 
+    static func saveAndFlush(_ snapshot: AppSnapshot) {
+        save(snapshot)
+        UserDefaults.standard.synchronize()
+    }
+
     static func shouldResetKeychainForFreshInstall(hasExistingSnapshot: Bool) -> Bool {
         let defaults = UserDefaults.standard
         let hasInstallationMarker = defaults.bool(forKey: installationMarkerKey)

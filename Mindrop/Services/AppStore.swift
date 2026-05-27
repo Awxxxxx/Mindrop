@@ -91,6 +91,11 @@ final class AppStore: ObservableObject {
         }
     }
 
+    func flushPendingLocalChanges() {
+        persistImmediately()
+        scheduleCloudSync(delayMilliseconds: 0)
+    }
+
     func login(account: String, password: String) async -> Bool {
         let email = account.trimmingCharacters(in: .whitespacesAndNewlines)
         guard email.isValidEmail, !password.isEmpty else {
@@ -874,6 +879,11 @@ final class AppStore: ObservableObject {
         scheduleCloudSync()
     }
 
+    private func persistImmediately() {
+        guard !isRestoring, !isApplyingRemoteSnapshot, !isPreparingCloudSession else { return }
+        PersistenceStore.saveAndFlush(currentSnapshot())
+    }
+
     private func currentSnapshot() -> AppSnapshot {
         AppSnapshot(
             session: session,
@@ -1150,7 +1160,7 @@ final class AppStore: ObservableObject {
         return (active, deleted)
     }
 
-    private func scheduleCloudSync() {
+    private func scheduleCloudSync(delayMilliseconds: UInt64 = 500) {
         guard session == .authenticated, let authSession = currentSupabaseSession else { return }
         let notes = notes.filter { !Self.isBuiltInSampleNote($0) }
         let deletedNotes = deletedNotes
@@ -1159,9 +1169,11 @@ final class AppStore: ObservableObject {
         let hasTrimmedChatHistory = hasTrimmedChatHistory
         let followsSystemAppearance = followsSystemAppearance
         cloudSyncTask?.cancel()
-        cloudSyncTask = Task { [weak self, supabaseService, authSession, notes, deletedNotes, messages, deletedMessages, hasTrimmedChatHistory, followsSystemAppearance] in
+        cloudSyncTask = Task { [weak self, supabaseService, authSession, notes, deletedNotes, messages, deletedMessages, hasTrimmedChatHistory, followsSystemAppearance, delayMilliseconds] in
             do {
-                try await Task.sleep(for: .milliseconds(500))
+                if delayMilliseconds > 0 {
+                    try await Task.sleep(nanoseconds: delayMilliseconds * 1_000_000)
+                }
                 try await supabaseService.syncAppData(
                     notes: notes,
                     deletedNotes: deletedNotes,
@@ -1232,6 +1244,8 @@ final class AppStore: ObservableObject {
             hasTrimmedChatHistory = true
         }
         messages = updatedMessages
+        persistImmediately()
+        scheduleCloudSync(delayMilliseconds: 0)
     }
 
     private func enforceChatHistoryLimit() {
