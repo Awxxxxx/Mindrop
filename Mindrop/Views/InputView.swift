@@ -55,7 +55,10 @@ struct InputView: View {
                                         .padding(.top, 4)
 
                                     ForEach(section.messages) { message in
-                                        ChatBubble(message: message)
+                                        ChatBubble(
+                                            message: message,
+                                            isReadOnlySample: store.isChatSampleMessage(message)
+                                        )
                                             .id(message.id)
                                     }
                                 }
@@ -83,10 +86,10 @@ struct InputView: View {
                         .onAppear {
                             scrollToBottom(scrollProxy, animated: false)
                         }
-                        .onChange(of: store.messages.count) { _, _ in
+                        .onChange(of: store.chatMessagesForDisplay.count) { _, _ in
                             scrollToBottom(scrollProxy)
                         }
-                        .onChange(of: store.messages.last?.text) { _, _ in
+                        .onChange(of: store.chatMessagesForDisplay.last?.text) { _, _ in
                             scrollToBottom(scrollProxy)
                         }
                         .onChange(of: store.isAIThinking) { _, _ in
@@ -155,7 +158,7 @@ struct InputView: View {
 
     private var messageDaySections: [ChatDaySection] {
         let calendar = Calendar.current
-        let messagesByDay = Dictionary(grouping: store.messages) { message in
+        let messagesByDay = Dictionary(grouping: store.chatMessagesForDisplay) { message in
             calendar.startOfDay(for: message.createdAt)
         }
         return messagesByDay.keys.sorted().map { day in
@@ -260,6 +263,7 @@ private struct MessageScrollOffsetKey: PreferenceKey {
 private struct ChatBubble: View {
     @EnvironmentObject private var store: AppStore
     let message: ChatMessage
+    var isReadOnlySample = false
 
     var body: some View {
         HStack {
@@ -279,7 +283,7 @@ private struct ChatBubble: View {
                     .font(.callout)
                     .lineSpacing(2)
 
-                if message.category == .qa && store.streamingAssistantMessageID != message.id {
+                if message.category == .qa && store.streamingAssistantMessageID != message.id && !isReadOnlySample {
                     Button("保存至灵感沉淀") {
                         store.saveConversationToIdea(message: message)
                     }
@@ -302,10 +306,12 @@ private struct ChatBubble: View {
                     Label("复制", systemImage: "doc.on.doc")
                 }
 
-                Button(role: .destructive) {
-                    store.deleteChatMessage(message)
-                } label: {
-                    Label("删除", systemImage: "trash")
+                if !isReadOnlySample {
+                    Button(role: .destructive) {
+                        store.deleteChatMessage(message)
+                    } label: {
+                        Label("删除", systemImage: "trash")
+                    }
                 }
             }
 

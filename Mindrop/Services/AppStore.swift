@@ -95,8 +95,20 @@ final class AppStore: ObservableObject {
         shouldShowHistorySampleNotes ? Self.builtInSampleNotes : notes
     }
 
+    var shouldShowChatSampleMessages: Bool {
+        !hasUserCreatedRealMessages
+    }
+
+    var chatMessagesForDisplay: [ChatMessage] {
+        shouldShowChatSampleMessages ? Self.builtInSampleMessages : messages
+    }
+
     func isHistorySampleNote(_ note: ThoughtNote) -> Bool {
         shouldShowHistorySampleNotes && Self.builtInSampleNoteIDs.contains(note.id)
+    }
+
+    func isChatSampleMessage(_ message: ChatMessage) -> Bool {
+        shouldShowChatSampleMessages && Self.builtInSampleDisplayMessageIDs.contains(message.id)
     }
 
     func refreshRemotePushRegistration() async {
@@ -1474,6 +1486,13 @@ final class AppStore: ObservableObject {
             !profileStats.noteRecords.isEmpty
     }
 
+    private var hasUserCreatedRealMessages: Bool {
+        let sampleMessageIDs = Self.builtInSampleMessageIDs(in: messages)
+        return messages.contains { !sampleMessageIDs.contains($0.id) } ||
+            deletedMessages.contains { Self.builtInSampleMessageTemplateIndex(for: $0) == nil } ||
+            !profileStats.messageRecords.isEmpty
+    }
+
     private func queueCloudSyncIfNeeded(delayMilliseconds: UInt64 = 500) {
         guard hasSyncableCloudContent else { return }
         markPendingCloudChanges()
@@ -1939,6 +1958,42 @@ final class AppStore: ObservableObject {
     }()
 
     private static let builtInSampleNoteIDs = Set(builtInSampleNotes.map(\.id))
+
+    private static let builtInSampleMessages: [ChatMessage] = {
+        let now = Date()
+        return [
+            ChatMessage(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000201") ?? UUID(),
+                role: .user,
+                text: "明天下午三点提醒我开会，并准备周报数据",
+                category: nil,
+                createdAt: now.addingTimeInterval(-240)
+            ),
+            ChatMessage(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000202") ?? UUID(),
+                role: .assistant,
+                text: "已总结并收纳至“待办提醒”板块",
+                category: .todo,
+                createdAt: now.addingTimeInterval(-230)
+            ),
+            ChatMessage(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000203") ?? UUID(),
+                role: .user,
+                text: "iPhone 怎么截长图？",
+                category: nil,
+                createdAt: now.addingTimeInterval(-120)
+            ),
+            ChatMessage(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000204") ?? UUID(),
+                role: .assistant,
+                text: "可以在 Safari 或支持滚动截图的页面截图后，切换到“整页”并保存为 PDF。",
+                category: .qa,
+                createdAt: now.addingTimeInterval(-110)
+            )
+        ]
+    }()
+
+    private static let builtInSampleDisplayMessageIDs = Set(builtInSampleMessages.map(\.id))
 
     @discardableResult
     private func migrateDefaultMeetingSampleReminder() -> Bool {
