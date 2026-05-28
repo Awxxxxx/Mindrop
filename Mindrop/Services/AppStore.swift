@@ -531,12 +531,17 @@ final class AppStore: ObservableObject {
     }
 
     func restore(_ note: ThoughtNote) {
+        let now = Date()
         update(note) { draft in
             let restoredCategory = draft.categoryBeforeRecycle ?? .idea
             draft.category = restoredCategory == .recycleBin ? .idea : restoredCategory
             draft.recycledAt = nil
             draft.categoryBeforeRecycle = nil
-            if draft.category != .todo {
+            if draft.category == .todo, let reminderAt = draft.reminderAt, reminderAt <= now {
+                draft.reminderAt = nil
+                draft.reminderNotificationTitle = nil
+                draft.reminderNotificationBody = nil
+            } else if draft.category != .todo {
                 draft.reminderAt = nil
                 draft.reminderNotificationTitle = nil
                 draft.reminderNotificationBody = nil
@@ -549,6 +554,8 @@ final class AppStore: ObservableObject {
         guard let restoredNote = notes.first(where: { $0.id == note.id }) else { return }
         if restoredNote.category == .todo, let reminderAt = restoredNote.reminderAt, reminderAt > .now {
             scheduleReminderAndPrepareText(for: restoredNote)
+        } else {
+            notificationScheduler.cancelReminder(for: restoredNote.id)
         }
         recordNoteForStats(restoredNote)
         enforceQANoteLimit()
