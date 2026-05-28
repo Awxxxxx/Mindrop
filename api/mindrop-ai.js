@@ -163,6 +163,7 @@ export default async function handler(request, response) {
       method: "POST",
       headers: modelRequestHeaders(config),
       body: modelPayloadText,
+      signal: request.signal,
     });
 
     const raw = await modelResponse.text();
@@ -226,6 +227,7 @@ async function handleReminderNotificationRequest(requestBody, response, config, 
       method: "POST",
       headers: modelRequestHeaders(config),
       body: modelPayloadText,
+      signal: request.signal,
     });
 
     const raw = await modelResponse.text();

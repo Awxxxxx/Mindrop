@@ -7,12 +7,15 @@ const MAX_TEXT_LENGTH = 2000;
 const TYPING_REACTION_EMOJI_TYPE = "Typing";
 const MAX_STALE_MESSAGE_AGE_MS = 10 * 60 * 1000;
 const PRE_PAIR_CLOCK_SKEW_MS = 30 * 1000;
+const AI_ANALYSIS_TIMEOUT_MS = 22 * 1000;
 const AI_RETRY_DELAY_MS = 350;
+const PROCESSING_RESUME_AFTER_MS = 2 * 60 * 1000;
 const PROCESSING_FAILED_REPLY = "小落刚才处理失败了，这条没有成功收纳。你可以稍后再发一次。";
 
 const cachedTenantTokens = new Map();
 
 export default async function handler(request, response) {
+  const timing = createFeishuTiming();
   if (request.method !== "POST") {
     response.status(405).json({ error: "Method not allowed" });
     return;
@@ -34,6 +37,7 @@ export default async function handler(request, response) {
   let connection;
   try {
     connection = await fetchFeishuConnection(config, callbackToken);
+    markFeishuStage(timing, "connection_loaded", connection, null);
   } catch (error) {
     console.error("Mindrop Feishu connection lookup failed", safeError(error));
     response.status(500).json({ error: "Connection lookup failed" });
@@ -88,31 +92,43 @@ export default async function handler(request, response) {
     response.status(200).json({ ok: true, ignored: true });
     return;
   }
+  markFeishuStage(timing, "event_received", connection, event);
 
   try {
     const claimed = await claimEventRecord(config, connection, event);
     if (!claimed.shouldProcess) {
-      logFeishuStage("duplicate_skipped", connection, event, { status: claimed.status });
+      markFeishuStage(timing, "duplicate_skipped", connection, event, {
+        status: claimed.status,
+        ageMs: claimed.ageMs,
+      });
       response.status(200).json({ ok: true, duplicate: true, status: claimed.status });
       return;
     }
     if (claimed.resumed) {
-      logFeishuStage("duplicate_resumed", connection, event, { status: claimed.status });
+      markFeishuStage(timing, "duplicate_resumed", connection, event, {
+        status: claimed.status,
+        ageMs: claimed.ageMs,
+      });
+    } else {
+      markFeishuStage(timing, "event_claimed", connection, event, { status: claimed.status });
     }
 
-    const processResult = await processMessageEvent(config, connection, event);
+    const processResult = await processMessageEvent(config, connection, event, timing);
     await markEventRecord(config, event.eventID, processResult.status, {
       userID: processResult.userID,
       error: processResult.error,
     });
+    markFeishuStage(timing, "event_marked", connection, event, { status: processResult.status });
 
     response.status(200).json({ ok: true, status: processResult.status });
   } catch (error) {
     console.error("Mindrop Feishu event failed", safeError(error));
-    await markEventRecord(config, event.eventID, "error", { error: safeError(error) }).catch(() => {});
+    const status = isTimeoutError(error) ? "timeout" : "error";
+    await markEventRecord(config, event.eventID, status, { error: safeError(error) }).catch(() => {});
     await insertFailureChatMessage(config, connection, event).catch(() => {});
     await replyToFeishuMessage(connection, event, PROCESSING_FAILED_REPLY).catch(() => {});
-    response.status(200).json({ ok: true, status: "error" });
+    markFeishuStage(timing, "event_failed", connection, event, { status, error: safeError(error) });
+    response.status(200).json({ ok: true, status });
   }
 }
 
@@ -130,7 +146,7 @@ function missingConfigKeys(config) {
     .map(([key]) => key);
 }
 
-async function processMessageEvent(config, connection, event) {
+async function processMessageEvent(config, connection, event, timing) {
   if (event.chatType !== "p2p") {
     await replyToFeishuMessage(connection, event, "Mindrop 目前只支持和 Bot 单聊收纳。");
     return { status: "ignored" };
@@ -177,13 +193,20 @@ async function processMessageEvent(config, connection, event) {
   }
 
   const typingReactionID = await addFeishuTypingReaction(connection, event);
+  markFeishuStage(timing, "typing_added", connection, event, { hasReaction: Boolean(typingReactionID) });
   try {
     await touchConnection(config, connection, event);
+    markFeishuStage(timing, "connection_touched", connection, event);
     const now = new Date();
     const messageIDs = feishuMessageIDs(connection, event);
     const context = await fetchRecentContext(config, connection.userID);
     const reminders = await fetchReminderCandidates(config, connection.userID);
     const qaNotes = await fetchQACandidates(config, connection.userID);
+    markFeishuStage(timing, "context_loaded", connection, event, {
+      contextCount: context.length,
+      reminderCount: reminders.length,
+      qaCount: qaNotes.length,
+    });
     await insertChatMessage(config, {
       userID: connection.userID,
       role: "user",
@@ -193,8 +216,9 @@ async function processMessageEvent(config, connection, event) {
       id: messageIDs.user,
       now,
     });
-    logFeishuStage("user_message_inserted", connection, event);
+    markFeishuStage(timing, "user_message_inserted", connection, event);
 
+    markFeishuStage(timing, "ai_started", connection, event);
     const analysis = await analyzeText({
       text,
       now: now.toISOString(),
@@ -203,7 +227,7 @@ async function processMessageEvent(config, connection, event) {
       reminders,
       qaNotes,
     });
-    logFeishuStage("ai_analyzed", connection, event, {
+    markFeishuStage(timing, "ai_finished", connection, event, {
       action: analysis.action || "createNote",
       category: analysis.category,
       replyChars: String(analysis.reply || "").length,
@@ -215,7 +239,7 @@ async function processMessageEvent(config, connection, event) {
       now,
       messageIDs.note
     );
-    logFeishuStage("note_applied", connection, event, { noteID });
+    markFeishuStage(timing, "note_applied", connection, event, { noteID });
     await insertChatMessage(config, {
       userID: connection.userID,
       role: "assistant",
@@ -225,11 +249,13 @@ async function processMessageEvent(config, connection, event) {
       id: messageIDs.assistant,
       now: new Date(),
     });
-    logFeishuStage("assistant_message_inserted", connection, event, { noteID });
+    markFeishuStage(timing, "assistant_message_inserted", connection, event, { noteID });
     await replyToFeishuMessage(connection, event, analysis.reply);
+    markFeishuStage(timing, "reply_sent", connection, event);
     return { status: "processed", userID: connection.userID };
   } finally {
     await deleteFeishuReaction(connection, event, typingReactionID);
+    markFeishuStage(timing, "typing_deleted", connection, event, { hasReaction: Boolean(typingReactionID) });
   }
 }
 
@@ -546,6 +572,12 @@ async function analyzeText(body) {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     let statusCode = 200;
     let payload = null;
+    let timedOut = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, AI_ANALYSIS_TIMEOUT_MS);
     const response = {
       setHeader() {},
       status(code) {
@@ -561,7 +593,16 @@ async function analyzeText(body) {
       },
     };
 
-    await mindropAIHandler({ method: "POST", body }, response);
+    try {
+      await mindropAIHandler({ method: "POST", body, signal: controller.signal }, response);
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (timedOut) {
+      const error = new Error(`Mindrop AI timed out after ${AI_ANALYSIS_TIMEOUT_MS}ms`);
+      error.code = "AI_TIMEOUT";
+      throw error;
+    }
     if (statusCode >= 200 && statusCode < 300) {
       return payload;
     }
@@ -721,15 +762,16 @@ async function claimEventRecord(config, connection, event) {
     }),
   });
   if (created?.[0]) {
-    return { shouldProcess: true, resumed: false, status: "processing" };
+    return { shouldProcess: true, resumed: false, status: "processing", ageMs: 0 };
   }
 
   const existing = await fetchEventRecord(config, event.eventID);
-  if (shouldResumeEventRecord(existing)) {
-    return { shouldProcess: true, resumed: true, status: existing?.status || "unknown" };
+  const ageMs = eventRecordAgeMs(existing);
+  if (shouldResumeEventRecord(existing, ageMs)) {
+    return { shouldProcess: true, resumed: true, status: existing?.status || "unknown", ageMs };
   }
 
-  return { shouldProcess: false, resumed: false, status: existing?.status || "duplicate" };
+  return { shouldProcess: false, resumed: false, status: existing?.status || "duplicate", ageMs };
 }
 
 async function fetchEventRecord(config, eventID) {
@@ -742,11 +784,19 @@ async function fetchEventRecord(config, eventID) {
   return rows?.[0] || null;
 }
 
-function shouldResumeEventRecord(record) {
+function shouldResumeEventRecord(record, ageMs) {
   if (!record) {
     return true;
   }
-  return record.status === "processing" || record.status === "error";
+  if (record.status === "processing") {
+    return Number.isFinite(ageMs) && ageMs >= PROCESSING_RESUME_AFTER_MS;
+  }
+  return record.status === "error";
+}
+
+function eventRecordAgeMs(record) {
+  const receivedAt = Date.parse(record?.received_at || "");
+  return Number.isFinite(receivedAt) ? Date.now() - receivedAt : null;
 }
 
 async function markEventRecord(config, eventID, status, options = {}) {
@@ -1041,6 +1091,37 @@ function trimTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+function createFeishuTiming() {
+  const now = nowMs();
+  return {
+    startedAtMs: now,
+    previousAtMs: now,
+  };
+}
+
+function markFeishuStage(timing, stage, connection, event, details = {}) {
+  const now = nowMs();
+  const elapsedMs = roundTiming(now - timing.startedAtMs);
+  const stepMs = roundTiming(now - timing.previousAtMs);
+  timing.previousAtMs = now;
+  logFeishuStage(stage, connection, event, {
+    elapsedMs,
+    stepMs,
+    ...details,
+  });
+}
+
+function nowMs() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+function roundTiming(value) {
+  return Math.round(value * 100) / 100;
+}
+
 function logFeishuStage(stage, connection, event, details = {}) {
   console.info(JSON.stringify({
     event: "mindrop_feishu_stage",
@@ -1060,6 +1141,10 @@ function shortID(value) {
 
 function safeError(error) {
   return safeErrorText(error?.message || error);
+}
+
+function isTimeoutError(error) {
+  return error?.code === "AI_TIMEOUT";
 }
 
 function safeErrorText(value) {
