@@ -18,7 +18,7 @@ struct HistoryView: View {
     private static let viewCoordinateSpace = "HistoryViewCoordinateSpace"
 
     private var visibleNotes: [ThoughtNote] {
-        store.notes
+        store.historyNotesForDisplay
             .filter { $0.category == store.selectedCategory }
             .filter(applyBillFilters)
             .sorted { lhs, rhs in
@@ -146,34 +146,44 @@ struct HistoryView: View {
         }
     }
 
+    @ViewBuilder
     private func noteCard(note: ThoughtNote, index: Int) -> some View {
-        SwipeableNoteCardView(
-            note: note,
-            index: index,
-            animationRunID: noteAnimationRunID,
-            openSwipeNoteID: $openSwipeNoteID,
-            actions: swipeActions(for: note),
-            contextMenu: {
-                contextActions(for: note)
-            },
-            onTap: {
-                editingNote = note
+        if store.isHistorySampleNote(note) {
+            AnimatedNoteCardView(
+                note: note,
+                index: index,
+                animationRunID: noteAnimationRunID
+            )
+        } else {
+            SwipeableNoteCardView(
+                note: note,
+                index: index,
+                animationRunID: noteAnimationRunID,
+                openSwipeNoteID: $openSwipeNoteID,
+                actions: swipeActions(for: note),
+                contextMenu: {
+                    contextActions(for: note)
+                },
+                onTap: {
+                    editingNote = note
+                }
+            )
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: NoteRowFramePreferenceKey.self,
+                        value: [note.id: proxy.frame(in: .named(Self.viewCoordinateSpace))]
+                    )
+                }
             }
-        )
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: NoteRowFramePreferenceKey.self,
-                    value: [note.id: proxy.frame(in: .named(Self.viewCoordinateSpace))]
-                )
-            }
+            .zIndex(openSwipeNoteID == note.id ? 100 : 0)
         }
-        .zIndex(openSwipeNoteID == note.id ? 100 : 0)
     }
 
     @ViewBuilder
     private var globalSwipeActionHitOverlay: some View {
-        if let openSwipeNoteID,
+        if !store.shouldShowHistorySampleNotes,
+           let openSwipeNoteID,
            let note = store.notes.first(where: { $0.id == openSwipeNoteID }),
            let frame = noteRowFrames[openSwipeNoteID] {
             let actions = swipeActions(for: note)

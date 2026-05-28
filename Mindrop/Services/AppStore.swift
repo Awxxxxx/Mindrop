@@ -61,6 +61,7 @@ final class AppStore: ObservableObject {
         } else {
             seed()
         }
+        removeBuiltInSampleDataFromCurrentState()
         migrateDefaultMeetingSampleReminder()
         if backfillProfileStatsFromCurrentData() {
             hasPendingCloudChanges = true
@@ -84,6 +85,18 @@ final class AppStore: ObservableObject {
 
     var isLoggedIn: Bool {
         session == .authenticated
+    }
+
+    var shouldShowHistorySampleNotes: Bool {
+        !hasUserCreatedRealNotes
+    }
+
+    var historyNotesForDisplay: [ThoughtNote] {
+        shouldShowHistorySampleNotes ? Self.builtInSampleNotes : notes
+    }
+
+    func isHistorySampleNote(_ note: ThoughtNote) -> Bool {
+        shouldShowHistorySampleNotes && Self.builtInSampleNoteIDs.contains(note.id)
     }
 
     func refreshRemotePushRegistration() async {
@@ -1455,6 +1468,12 @@ final class AppStore: ObservableObject {
             !followsSystemAppearance
     }
 
+    private var hasUserCreatedRealNotes: Bool {
+        notes.contains { !Self.isBuiltInSampleNote($0) } ||
+            deletedNotes.contains { !Self.isBuiltInSampleNote($0) } ||
+            !profileStats.noteRecords.isEmpty
+    }
+
     private func queueCloudSyncIfNeeded(delayMilliseconds: UInt64 = 500) {
         guard hasSyncableCloudContent else { return }
         markPendingCloudChanges()
@@ -1862,22 +1881,64 @@ final class AppStore: ObservableObject {
     }
 
     private func seed() {
-        notes = [
-            ThoughtNote(title: "买垃圾桶", content: "给家里买一个带盖垃圾桶，优先看厨房尺寸。", category: .todo),
-            ThoughtNote(title: "会议提醒", content: "开会前准备周报数据。", category: .todo),
-            ThoughtNote(title: "水支出", content: "餐饮分类，买了一瓶水花了 1 块钱。", category: .bill, expenseAmount: 1, expenseCategory: .food),
-            ThoughtNote(title: "语音记录 App", content: "面向碎片念头的语音收件箱，自动总结并归档。", category: .idea, isPinned: true),
-            ThoughtNote(title: "iPhone 截长图", content: "在 Safari 截图后切换到整页，并保存为 PDF。", category: .qa),
-            ThoughtNote(title: "旧会议提醒", content: "已超过提醒时间 24 小时，自动进入回收站。", category: .recycleBin)
-        ]
-
-        messages = [
-            ChatMessage(role: .user, text: "明天下午三点提醒我开会，并准备周报数据", category: nil),
-            ChatMessage(role: .assistant, text: "已总结并收纳至“待办提醒”板块", category: .todo),
-            ChatMessage(role: .user, text: "iPhone 怎么截长图？", category: nil),
-            ChatMessage(role: .assistant, text: "可以在 Safari 或支持滚动截图的页面截图后，切换到“整页”并保存为 PDF。", category: .qa)
-        ]
+        notes = []
+        messages = []
     }
+
+    private static let builtInSampleNotes: [ThoughtNote] = {
+        let now = Date()
+        return [
+            ThoughtNote(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000101") ?? UUID(),
+                title: "买垃圾桶",
+                content: "给家里买一个带盖垃圾桶，优先看厨房尺寸。",
+                category: .todo,
+                createdAt: now.addingTimeInterval(-60)
+            ),
+            ThoughtNote(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000102") ?? UUID(),
+                title: "会议提醒",
+                content: "开会前准备周报数据。",
+                category: .todo,
+                createdAt: now.addingTimeInterval(-120)
+            ),
+            ThoughtNote(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000103") ?? UUID(),
+                title: "水支出",
+                content: "餐饮分类，买了一瓶水花了 1 块钱。",
+                category: .bill,
+                createdAt: now.addingTimeInterval(-180),
+                expenseAmount: 1,
+                expenseCategory: .food
+            ),
+            ThoughtNote(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000104") ?? UUID(),
+                title: "语音记录 App",
+                content: "面向碎片念头的语音收件箱，自动总结并归档。",
+                category: .idea,
+                createdAt: now.addingTimeInterval(-240),
+                isPinned: true
+            ),
+            ThoughtNote(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000105") ?? UUID(),
+                title: "iPhone 截长图",
+                content: "在 Safari 截图后切换到整页，并保存为 PDF。",
+                category: .qa,
+                createdAt: now.addingTimeInterval(-300)
+            ),
+            ThoughtNote(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000106") ?? UUID(),
+                title: "旧会议提醒",
+                content: "已超过提醒时间 24 小时，自动进入回收站。",
+                category: .recycleBin,
+                createdAt: now.addingTimeInterval(-360),
+                recycledAt: now.addingTimeInterval(-180),
+                categoryBeforeRecycle: .todo
+            )
+        ]
+    }()
+
+    private static let builtInSampleNoteIDs = Set(builtInSampleNotes.map(\.id))
 
     @discardableResult
     private func migrateDefaultMeetingSampleReminder() -> Bool {
