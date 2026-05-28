@@ -659,6 +659,7 @@ private struct SettingsPageView: View {
     @State private var showProfileEditor = false
     @State private var showWelcomePage = false
     @State private var selectedDocument: SettingsDocument?
+    @State private var showDeleteAccountConfirmation = false
 
     var body: some View {
         ZStack {
@@ -703,6 +704,16 @@ private struct SettingsPageView: View {
                                     store.logout()
                                     dismiss()
                                 }
+                                rowDivider
+                                SettingsPageRow(
+                                    title: store.isDeletingAccount ? "正在注销账号..." : "注销账号",
+                                    titleColor: .red,
+                                    showsChevron: false
+                                ) {
+                                    showDeleteAccountConfirmation = true
+                                }
+                                .disabled(store.isDeletingAccount)
+                                .opacity(store.isDeletingAccount ? 0.56 : 1)
                             }
                         }
                     }
@@ -724,6 +735,18 @@ private struct SettingsPageView: View {
         }
         .navigationDestination(item: $selectedDocument) { document in
             SettingsDocumentPage(document: document)
+        }
+        .alert("确认注销账号？", isPresented: $showDeleteAccountConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("确认注销账号", role: .destructive) {
+                Task {
+                    if await store.deleteAccount() {
+                        dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("注销后，你的账号、云端同步数据、提醒推送记录和飞书连接将被删除，当前设备上的念落数据也会清空。此操作无法恢复。")
         }
     }
 
@@ -803,6 +826,8 @@ private struct SettingsListGroup<Content: View>: View {
 private struct SettingsPageRow: View {
     let title: String
     var detail: String?
+    var titleColor: Color = .mindInk
+    var showsChevron = true
     var action: () -> Void = {}
 
     var body: some View {
@@ -810,7 +835,7 @@ private struct SettingsPageRow: View {
             HStack(spacing: 12) {
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.mindInk)
+                    .foregroundStyle(titleColor)
 
                 Spacer()
 
@@ -820,9 +845,11 @@ private struct SettingsPageRow: View {
                         .foregroundStyle(Color.mindInk.opacity(0.48))
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.mindInk.opacity(0.18))
+                if showsChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.mindInk.opacity(0.18))
+                }
             }
             .frame(minHeight: 58)
             .padding(.horizontal, 20)
@@ -916,6 +943,7 @@ private enum SettingsDocument: String, Identifiable {
                     title: "你的权利",
                     paragraphs: [
                         "你可以在应用内查看、编辑、删除便签和对话，移动到回收站或永久删除记录；你也可以修改个人资料、退出登录或关闭系统权限。",
+                        "你可以在设置页发起注销账号。注销完成后，念落会删除你的账号、云端同步数据、提醒推送记录和飞书连接信息，并清空当前设备上的本地数据。",
                         "如果你希望访问、更正、删除更多个人信息，撤销飞书连接，或对本政策有疑问，可以通过应用商店展示的开发者联系方式与我们联系。"
                     ]
                 ),
@@ -945,6 +973,7 @@ private enum SettingsDocument: String, Identifiable {
                     title: "账号与资料",
                     paragraphs: [
                         "你应保证填写的昵称、用户 ID 等资料真实、合法，不侵犯他人权利，也不得冒充他人或使用误导性信息。",
+                        "你可以在应用内设置页注销账号。注销账号会删除账号及相关云端数据，并清空当前设备上的本地数据；注销完成后无法恢复。",
                         "你应妥善管理自己的设备、账号、登录状态、飞书应用凭证和数据。因你主动删除、卸载应用、泄露凭证、关闭权限或设备异常导致的数据丢失、同步失败或功能不可用，念落可能无法恢复。"
                     ]
                 ),

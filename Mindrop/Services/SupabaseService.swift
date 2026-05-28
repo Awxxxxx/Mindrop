@@ -380,6 +380,23 @@ final class SupabaseService {
         )
     }
 
+    func deleteAccount(using session: SupabaseSession) async throws {
+        let activeSession = try await activeSession(from: session)
+        guard let baseURL = mindropAPIBaseURL,
+              let url = URL(string: "/api/account/delete", relativeTo: baseURL)?.absoluteURL else {
+            throw SupabaseServiceError.invalidConfiguration
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("Bearer \(activeSession.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("{}".utf8)
+        _ = try await perform(request)
+        try? clearSession()
+    }
+
     func fetchAppData(using session: SupabaseSession) async throws -> SupabaseAppData {
         let activeSession = try await activeSession(from: session)
         let allNotes = try await fetchNotes(using: activeSession)

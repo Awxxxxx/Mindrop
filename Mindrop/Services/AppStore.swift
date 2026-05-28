@@ -17,6 +17,7 @@ final class AppStore: ObservableObject {
     @Published var isAIThinking = false
     @Published var isAuthenticating = false
     @Published var isSavingProfile = false
+    @Published var isDeletingAccount = false
     @Published var streamingAssistantMessageID: UUID?
     @Published var toast: String?
     let notificationScheduler = NotificationScheduler()
@@ -216,6 +217,58 @@ final class AppStore: ObservableObject {
         selectedTab = .history
         selectedCategory = .todo
         showToast("已退出登录")
+    }
+
+    func deleteAccount() async -> Bool {
+        guard session == .authenticated, let authSession = currentSupabaseSession else {
+            showToast("请先登录账号")
+            return false
+        }
+
+        isDeletingAccount = true
+        cloudSyncTask?.cancel()
+        defer { isDeletingAccount = false }
+
+        do {
+            try await supabaseService.deleteAccount(using: authSession)
+            clearLocalDataAfterAccountDeletion()
+            showToast("账号已注销")
+            return true
+        } catch {
+            showToast("注销失败：\(authErrorMessage(from: error))")
+            return false
+        }
+    }
+
+    private func clearLocalDataAfterAccountDeletion() {
+        let noteIDs = notes.map(\.id)
+        cloudSyncTask?.cancel()
+        cloudSyncTask = nil
+        noteIDs.forEach { notificationScheduler.cancelReminder(for: $0) }
+
+        isApplyingRemoteSnapshot = true
+        currentSupabaseSession = nil
+        feishuPairingDraft = nil
+        pendingAIRequestCount = 0
+        isAIThinking = false
+        streamingAssistantMessageID = nil
+        notes = []
+        deletedNotes = []
+        messages = []
+        deletedMessages = []
+        profileStats = .empty
+        hasTrimmedChatHistory = false
+        hasPendingCloudChanges = false
+        cloudSyncRevision += 1
+        profile = .loggedOut
+        followsSystemAppearance = true
+        selectedTab = .history
+        selectedCategory = .todo
+        session = .welcome
+        isApplyingRemoteSnapshot = false
+
+        try? supabaseService.clearSession()
+        PersistenceStore.saveAndFlush(currentSnapshot())
     }
 
     func submitThought(_ rawText: String) {
