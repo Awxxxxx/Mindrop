@@ -131,8 +131,6 @@ function missingConfigKeys(config) {
 }
 
 async function processMessageEvent(config, connection, event) {
-  await touchConnection(config, connection, event);
-
   if (event.chatType !== "p2p") {
     await replyToFeishuMessage(connection, event, "Mindrop 目前只支持和 Bot 单聊收纳。");
     return { status: "ignored" };
@@ -180,6 +178,7 @@ async function processMessageEvent(config, connection, event) {
 
   const typingReactionID = await addFeishuTypingReaction(connection, event);
   try {
+    await touchConnection(config, connection, event);
     const now = new Date();
     const messageIDs = feishuMessageIDs(connection, event);
     const context = await fetchRecentContext(config, connection.userID);
