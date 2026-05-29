@@ -7,7 +7,7 @@
     <title>念落笔记 | 接住你每一个想法</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/assets/favicon.png" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=20260529-2" />
   </head>
   <body>
     <canvas id="ambientCanvas" aria-hidden="true"></canvas>
@@ -15,7 +15,7 @@
 
     <header class="topbar">
       <a class="brand" href="#top" aria-label="念落笔记首页">
-        <span class="brand-mark"><img src="/assets/icon.png" alt="" /></span>
+        <span class="brand-mark"><img src="/assets/icon.png" width="1024" height="1024" alt="" decoding="async" /></span>
         <span>念落笔记</span>
       </a>
       <div class="download-entry">
@@ -60,16 +60,25 @@
         <div class="hero-stage reveal" data-delay="120">
           <div class="screenshot-stack" aria-label="念落笔记真实 App 界面截图">
             <figure class="shot-card is-back" data-kicker="数据复盘" data-title="云端同步" data-bubble-position="bubble-right-top">
-              <img src="/assets/1.png" alt="念落笔记个人数据统计页" />
+              <picture>
+                <source srcset="/assets/1.webp" type="image/webp" />
+                <img src="/assets/1.png" width="1206" height="2622" alt="念落笔记个人数据统计页" decoding="async" />
+              </picture>
             </figure>
             <figure class="shot-card is-mid" data-kicker="便签沉淀" data-title="自动分类" data-bubble-position="bubble-right-middle">
-              <img src="/assets/3.png" alt="念落笔记账单记录与自动分类历史页" />
+              <picture>
+                <source srcset="/assets/3.webp" type="image/webp" />
+                <img src="/assets/3.png" width="1206" height="2622" alt="念落笔记账单记录与自动分类历史页" decoding="async" />
+              </picture>
             </figure>
             <figure class="shot-card is-front" data-kicker="语音输入" data-title="便捷记录" data-bubble-position="bubble-left-middle">
-              <img src="/assets/6.png" alt="念落笔记对话输入和语音输入界面" />
+              <picture>
+                <source srcset="/assets/6.webp" type="image/webp" />
+                <img src="/assets/6.png" width="1206" height="2622" alt="念落笔记对话输入和语音输入界面" decoding="async" fetchpriority="high" />
+              </picture>
             </figure>
           </div>
-          <div class="orbit-card hero-bubble bubble-left-middle" aria-live="polite">
+          <div class="orbit-card hero-bubble bubble-left-middle" aria-hidden="true">
             <strong>语音输入，便捷记录</strong>
           </div>
         </div>
@@ -110,37 +119,73 @@
           <h2>从输入到沉淀，每一步都有轻盈反馈。</h2>
         </div>
         <div class="lab-layout">
-          <div class="demo-switch reveal">
-            <button class="demo-tab active" data-demo="voice">语音输入</button>
-            <button class="demo-tab" data-demo="chat">对话记录</button>
-            <button class="demo-tab" data-demo="bill">账单历史</button>
-            <button class="demo-tab" data-demo="swipe">侧滑管理</button>
-            <button class="demo-tab" data-demo="todo">待办提醒</button>
-            <button class="demo-tab" data-demo="stats">个人数据</button>
+          <div class="demo-switch reveal" role="tablist" aria-label="App 交互演示">
+            <button class="demo-tab active" id="tab-voice" type="button" role="tab" aria-selected="true" aria-controls="panel-voice" data-demo="voice">语音输入</button>
+            <button class="demo-tab" id="tab-chat" type="button" role="tab" aria-selected="false" aria-controls="panel-chat" tabindex="-1" data-demo="chat">对话记录</button>
+            <button class="demo-tab" id="tab-bill" type="button" role="tab" aria-selected="false" aria-controls="panel-bill" tabindex="-1" data-demo="bill">账单历史</button>
+            <button class="demo-tab" id="tab-swipe" type="button" role="tab" aria-selected="false" aria-controls="panel-swipe" tabindex="-1" data-demo="swipe">侧滑管理</button>
+            <button class="demo-tab" id="tab-todo" type="button" role="tab" aria-selected="false" aria-controls="panel-todo" tabindex="-1" data-demo="todo">待办提醒</button>
+            <button class="demo-tab" id="tab-stats" type="button" role="tab" aria-selected="false" aria-controls="panel-stats" tabindex="-1" data-demo="stats">个人数据</button>
           </div>
           <div class="demo-canvas real-demo reveal" data-delay="120">
-            <figure class="product-shot active" data-screen="voice">
-              <img src="/assets/6.png" alt="念落笔记语音输入浮层截图" />
+            <figure class="product-shot active" id="panel-voice" role="tabpanel" aria-labelledby="tab-voice" data-screen="voice">
+              <div class="shot-frame">
+                <picture>
+                  <source srcset="/assets/6.webp" type="image/webp" />
+                  <img src="/assets/6.png" width="1206" height="2622" alt="念落笔记语音输入浮层截图" loading="lazy" decoding="async" />
+                </picture>
+                <span class="demo-cue cue-voice" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+              </div>
               <figcaption><b>语音输入</b><span>输入浮层在对话流上方弹出，强调“说出想法”的低阻力体验。</span></figcaption>
             </figure>
-            <figure class="product-shot" data-screen="chat">
-              <img src="/assets/2.png" alt="念落笔记对话记录截图" />
+            <figure class="product-shot" id="panel-chat" role="tabpanel" aria-labelledby="tab-chat" aria-hidden="true" data-screen="chat">
+              <div class="shot-frame">
+                <picture>
+                  <source srcset="/assets/2.webp" type="image/webp" />
+                  <img src="/assets/2.png" width="1206" height="2622" alt="念落笔记对话记录截图" loading="lazy" decoding="async" />
+                </picture>
+                <span class="demo-cue cue-chat" aria-hidden="true"><i></i><i></i><i></i></span>
+              </div>
               <figcaption><b>对话记录</b><span>AI 将用户输入沉淀为知识问答、待办提醒和账单记录。</span></figcaption>
             </figure>
-            <figure class="product-shot" data-screen="bill">
-              <img src="/assets/3.png" alt="念落笔记账单历史截图" />
+            <figure class="product-shot" id="panel-bill" role="tabpanel" aria-labelledby="tab-bill" aria-hidden="true" data-screen="bill">
+              <div class="shot-frame">
+                <picture>
+                  <source srcset="/assets/3.webp" type="image/webp" />
+                  <img src="/assets/3.png" width="1206" height="2622" alt="念落笔记账单历史截图" loading="lazy" decoding="async" />
+                </picture>
+                <span class="demo-cue cue-bill" aria-hidden="true"></span>
+              </div>
               <figcaption><b>账单历史</b><span>账单分类、金额和时间过滤都集中在历史页里完成。</span></figcaption>
             </figure>
-            <figure class="product-shot" data-screen="swipe">
-              <img src="/assets/4.png" alt="念落笔记历史记录侧滑交互截图" />
+            <figure class="product-shot" id="panel-swipe" role="tabpanel" aria-labelledby="tab-swipe" aria-hidden="true" data-screen="swipe">
+              <div class="shot-frame">
+                <picture>
+                  <source srcset="/assets/4.webp" type="image/webp" />
+                  <img src="/assets/4.png" width="1206" height="2622" alt="念落笔记历史记录侧滑交互截图" loading="lazy" decoding="async" />
+                </picture>
+                <span class="demo-cue cue-swipe" aria-hidden="true"><i></i><i></i></span>
+              </div>
               <figcaption><b>侧滑管理</b><span>历史卡片支持侧滑置顶和删除，贴近移动端直觉操作。</span></figcaption>
             </figure>
-            <figure class="product-shot" data-screen="todo">
-              <img src="/assets/5.png" alt="念落笔记待办提醒截图" />
+            <figure class="product-shot" id="panel-todo" role="tabpanel" aria-labelledby="tab-todo" aria-hidden="true" data-screen="todo">
+              <div class="shot-frame">
+                <picture>
+                  <source srcset="/assets/5.webp" type="image/webp" />
+                  <img src="/assets/5.png" width="1206" height="2622" alt="念落笔记待办提醒截图" loading="lazy" decoding="async" />
+                </picture>
+                <span class="demo-cue cue-todo" aria-hidden="true"></span>
+              </div>
               <figcaption><b>待办提醒</b><span>自然语言中的时间会被识别并收纳到待办提醒板块。</span></figcaption>
             </figure>
-            <figure class="product-shot" data-screen="stats">
-              <img src="/assets/1.png" alt="念落笔记个人数据截图" />
+            <figure class="product-shot" id="panel-stats" role="tabpanel" aria-labelledby="tab-stats" aria-hidden="true" data-screen="stats">
+              <div class="shot-frame">
+                <picture>
+                  <source srcset="/assets/1.webp" type="image/webp" />
+                  <img src="/assets/1.png" width="1206" height="2622" alt="念落笔记个人数据截图" loading="lazy" decoding="async" />
+                </picture>
+                <span class="demo-cue cue-stats" aria-hidden="true"></span>
+              </div>
               <figcaption><b>个人数据</b><span>对话次数、资金支出和类型分布帮助用户复盘记录结构。</span></figcaption>
             </figure>
           </div>
@@ -184,6 +229,6 @@
       </section>
     </main>
 
-    <script src="/main.js"></script>
+    <script src="/main.js?v=20260529-2"></script>
   </body>
 </html>

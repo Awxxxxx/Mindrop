@@ -14,16 +14,20 @@ const timelineSections = timelineLinks
   .map(link => document.querySelector(link.getAttribute("href")))
   .filter(Boolean);
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+const canUseAmbientCanvas = Boolean(canvas && ctx && !prefersReducedMotion && !isCoarsePointer && window.innerWidth >= 720);
 
 let width = 0;
 let height = 0;
 let particles = [];
 let pointer = { x: 0.5, y: 0.18 };
+let pendingPointer = pointer;
+let pointerTicking = false;
 let heroCarouselTimer;
 let timelineTicking = false;
 
 function resizeCanvas() {
-  if (!canvas || !ctx) return;
+  if (!canUseAmbientCanvas) return;
   const scale = Math.min(window.devicePixelRatio || 1, 2);
   width = window.innerWidth;
   height = window.innerHeight;
@@ -33,7 +37,8 @@ function resizeCanvas() {
   canvas.style.height = `${height}px`;
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
 
-  particles = Array.from({ length: Math.min(58, Math.floor(width / 22)) }, () => ({
+  const particleCount = Math.min(46, Math.floor(width / 30));
+  particles = Array.from({ length: particleCount }, () => ({
     x: Math.random() * width,
     y: Math.random() * height,
     r: 1 + Math.random() * 2.8,
@@ -44,7 +49,7 @@ function resizeCanvas() {
 }
 
 function drawAmbient() {
-  if (!ctx || prefersReducedMotion) return;
+  if (!canUseAmbientCanvas) return;
   ctx.clearRect(0, 0, width, height);
 
   const glow = ctx.createRadialGradient(
@@ -113,19 +118,36 @@ const revealObserver = new IntersectionObserver(
   { threshold: 0.16 }
 );
 
-function switchDemo(name) {
+function switchDemo(name, options = {}) {
+  const activeTab = demoTabs.find(tab => tab.dataset.demo === name);
+
   demoTabs.forEach(tab => {
-    tab.classList.toggle("active", tab.dataset.demo === name);
+    const isActive = tab.dataset.demo === name;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+    tab.tabIndex = isActive ? 0 : -1;
   });
 
   demoScreens.forEach(screen => {
-    screen.classList.toggle("active", screen.dataset.screen === name);
+    const isActive = screen.dataset.screen === name;
+    screen.classList.toggle("active", isActive);
+    screen.setAttribute("aria-hidden", String(!isActive));
   });
 
   demoCanvas?.setAttribute("data-active-demo", name);
+
+  if (options.scrollTab !== false && activeTab) {
+    activeTab.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "nearest",
+      inline: "center"
+    });
+  }
 }
 
 function setupMagneticButtons() {
+  if (prefersReducedMotion || isCoarsePointer) return;
+
   document.querySelectorAll(".magnetic").forEach(button => {
     button.addEventListener("mousemove", event => {
       const rect = button.getBoundingClientRect();
@@ -171,18 +193,25 @@ function rotateHeroCards() {
 }
 
 function startHeroCarousel() {
-  if (prefersReducedMotion || heroCards.length < 3) return;
+  if (prefersReducedMotion || document.hidden || heroCards.length < 3) return;
   window.clearInterval(heroCarouselTimer);
-  heroCarouselTimer = window.setInterval(rotateHeroCards, 3000);
+  heroCarouselTimer = window.setInterval(rotateHeroCards, 3600);
 }
 
 function updatePointer(event) {
-  pointer = {
+  pendingPointer = {
     x: event.clientX / window.innerWidth,
     y: event.clientY / window.innerHeight
   };
-  root.style.setProperty("--mx", `${pointer.x * 100}%`);
-  root.style.setProperty("--my", `${pointer.y * 100}%`);
+
+  if (pointerTicking) return;
+  pointerTicking = true;
+  requestAnimationFrame(() => {
+    pointerTicking = false;
+    pointer = pendingPointer;
+    root.style.setProperty("--mx", `${pointer.x * 100}%`);
+    root.style.setProperty("--my", `${pointer.y * 100}%`);
+  });
 }
 
 function updateTimelineActive() {
@@ -212,9 +241,30 @@ function requestTimelineUpdate() {
 revealObserver && reveals.forEach(item => revealObserver.observe(item));
 demoTabs.forEach(tab => {
   tab.addEventListener("click", () => switchDemo(tab.dataset.demo));
+  tab.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+
+    const currentIndex = demoTabs.indexOf(tab);
+    const lastIndex = demoTabs.length - 1;
+    let nextIndex = currentIndex;
+
+    if (event.key === "ArrowLeft") nextIndex = currentIndex <= 0 ? lastIndex : currentIndex - 1;
+    if (event.key === "ArrowRight") nextIndex = currentIndex >= lastIndex ? 0 : currentIndex + 1;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = lastIndex;
+
+    demoTabs[nextIndex]?.focus();
+    switchDemo(demoTabs[nextIndex]?.dataset.demo);
+  });
 });
 setupMagneticButtons();
-resizeCanvas();
+if (canUseAmbientCanvas) {
+  resizeCanvas();
+} else if (canvas) {
+  canvas.hidden = true;
+}
+switchDemo(demoTabs.find(tab => tab.classList.contains("active"))?.dataset.demo || "voice", { scrollTab: false });
 updateHeroBubble();
 startHeroCarousel();
 
@@ -222,9 +272,16 @@ heroStack?.addEventListener("mouseenter", () => window.clearInterval(heroCarouse
 heroStack?.addEventListener("mouseleave", startHeroCarousel);
 window.addEventListener("scroll", requestTimelineUpdate, { passive: true });
 window.addEventListener("resize", requestTimelineUpdate, { passive: true });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    window.clearInterval(heroCarouselTimer);
+    return;
+  }
+  startHeroCarousel();
+});
 updateTimelineActive();
 
-if (!prefersReducedMotion) {
+if (canUseAmbientCanvas) {
   window.addEventListener("resize", resizeCanvas, { passive: true });
   window.addEventListener("pointermove", updatePointer, { passive: true });
   requestAnimationFrame(drawAmbient);
