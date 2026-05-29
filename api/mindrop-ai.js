@@ -525,9 +525,8 @@ function modelThinkingControl(config) {
     return {};
   }
   return {
-    reasoning_effort: "high",
     thinking: {
-      type: "enabled",
+      type: "disabled",
     },
   };
 }
