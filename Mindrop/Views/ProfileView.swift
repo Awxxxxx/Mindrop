@@ -859,6 +859,31 @@ private struct SettingsPageRow: View {
     }
 }
 
+private struct SettingsShareRow: View {
+    let title: String
+    let url: URL
+
+    var body: some View {
+        ShareLink(item: url) {
+            HStack(spacing: 12) {
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.mindInk)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Color.mindInk.opacity(0.18))
+            }
+            .frame(minHeight: 58)
+            .padding(.horizontal, 20)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private enum SettingsDocument: String, Identifiable {
     case privacy = "隐私政策"
     case agreement = "用户协议"
@@ -1048,6 +1073,7 @@ private struct SettingsDocumentPage: View {
     @Environment(\.openURL) private var openURL
     let document: SettingsDocument
     @State private var isOpeningReviewPage = false
+    private static let shareURL = URL(string: "https://apps.apple.com/cn/app/%E5%BF%B5%E8%90%BD%E7%AC%94%E8%AE%B0/id6772984960")!
 
     var body: some View {
         ZStack {
@@ -1129,6 +1155,8 @@ private struct SettingsDocumentPage: View {
                 SettingsInfoRow(title: "联系方式", value: "xxx@xxxxxxx.tw")
                 Divider().padding(.leading, 20)
                 SettingsPageRow(title: "去评分", action: openReviewPage)
+                Divider().padding(.leading, 20)
+                SettingsShareRow(title: "分享给朋友", url: Self.shareURL)
             }
         }
     }

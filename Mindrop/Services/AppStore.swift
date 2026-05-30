@@ -59,7 +59,7 @@ final class AppStore: ObservableObject {
             hasPendingCloudChanges = snapshot.hasPendingCloudChanges
             profile = snapshot.profile
             followsSystemAppearance = snapshot.followsSystemAppearance
-            aiThinkingMode = snapshot.aiThinkingMode
+            aiThinkingMode = .fast
             enforceChatHistoryLimit()
         } else {
             seed()
@@ -169,7 +169,6 @@ final class AppStore: ObservableObject {
             defer { isPreparingCloudSession = false }
             currentSupabaseSession = authSession
             session = .authenticated
-            selectedTab = .history
             selectedCategory = .todo
             removeBuiltInSampleDataFromCurrentState()
             await syncRemoteDataOrMigrateLegacy(using: authSession)
@@ -649,6 +648,25 @@ final class AppStore: ObservableObject {
             scheduleReminderAndPrepareText(for: updatedNote, forceRefresh: true)
         } else {
             notificationScheduler.cancelReminder(for: updatedNote.id)
+        }
+        showToast("已保存")
+    }
+
+    func createManualNote(_ note: ThoughtNote) {
+        var newNote = note
+        newNote.title = newNote.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        newNote.content = newNote.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        newNote.updatedAt = .now
+        newNote.deletedAt = nil
+        newNote.categoryBeforeRecycle = nil
+        newNote.recycledAt = nil
+        newNote.reminderNotificationTitle = nil
+        newNote.reminderNotificationBody = nil
+        notes.insert(newNote, at: 0)
+        recordNoteForStats(newNote)
+        enforceQANoteLimit()
+        if newNote.category == .todo, let reminderAt = newNote.reminderAt, reminderAt > .now {
+            scheduleReminderAndPrepareText(for: newNote, forceRefresh: true)
         }
         showToast("已保存")
     }
@@ -1240,7 +1258,6 @@ final class AppStore: ObservableObject {
             defer { isPreparingCloudSession = false }
             currentSupabaseSession = authSession
             session = .authenticated
-            selectedTab = .history
             selectedCategory = .todo
             removeBuiltInSampleDataFromCurrentState()
             await syncRemoteDataOrMigrateLegacy(using: authSession)

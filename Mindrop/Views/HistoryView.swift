@@ -5,17 +5,20 @@ struct HistoryView: View {
     @EnvironmentObject private var store: AppStore
     @State private var noteAnimationRunID = 0
     @State private var editingNote: ThoughtNote?
+    @State private var isCreatingNote = false
     @State private var billSort: BillSortOption = .latest
     @State private var billTimeFilter: BillTimeFilter = .all
     @State private var billAmountFilter: BillAmountFilter = .all
     @State private var billTypeFilter: ExpenseCategory?
     @State private var openSwipeNoteID: UUID?
+    @State private var animatedNoteIDs: Set<UUID> = []
     @State private var scrollContentMaxY: CGFloat = 0
     @State private var lastScrollContentMinY: CGFloat?
     @State private var noteRowFrames: [UUID: CGRect] = [:]
 
     private static let scrollCoordinateSpace = "HistoryScrollCoordinateSpace"
     private static let viewCoordinateSpace = "HistoryViewCoordinateSpace"
+    private static let animatedEntranceLimit = 8
 
     private var visibleNotes: [ThoughtNote] {
         store.historyNotesForDisplay
@@ -40,29 +43,20 @@ struct HistoryView: View {
 
             GeometryReader { proxy in
                 ZStack(alignment: .top) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 17) {
-                            header
-                            categories
-                            categoryNotice
+                    VStack(alignment: .leading, spacing: 0) {
+                        fixedHeader
 
-                            if store.selectedCategory == .bill {
-                                billFilters
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 0) {
+                                noteList
+                                    .padding(.top, 4)
                             }
-
-                            if store.selectedCategory == .recycleBin {
-                                recycleBinNotice
-                            }
-
-                            noteList
-                                .padding(.top, 4)
+                            .padding(.horizontal, 22)
+                            .padding(.bottom, 34)
+                            .background(scrollContentBoundsReader)
                         }
-                        .padding(.horizontal, 22)
-                        .padding(.top, 48)
-                        .padding(.bottom, 34)
-                        .background(scrollContentBoundsReader)
+                        .coordinateSpace(name: Self.scrollCoordinateSpace)
                     }
-                    .coordinateSpace(name: Self.scrollCoordinateSpace)
 
                     blankAreaDismissOverlay(viewportHeight: proxy.size.height)
                 }
@@ -80,8 +74,10 @@ struct HistoryView: View {
         .onPreferenceChange(NoteRowFramePreferenceKey.self) { value in
             noteRowFrames = value
         }
-        .sheet(item: $editingNote) { note in
-            NoteEditorView(note: note)
+        .sheet(item: $editingNote, onDismiss: {
+            isCreatingNote = false
+        }) { note in
+            NoteEditorView(note: note, isNewNote: isCreatingNote)
                 .presentationDetents([.large])
                 .presentationCornerRadius(28)
         }
@@ -111,9 +107,30 @@ struct HistoryView: View {
             SectionHeader(title: "历史")
             Spacer()
             IconCircleButton(systemName: "plus") {
-                store.selectedTab = .input
+                HapticFeedback.lightImpact()
+                isCreatingNote = true
+                editingNote = ThoughtNote(title: "", content: "", category: .todo)
             }
         }
+    }
+
+    private var fixedHeader: some View {
+        VStack(alignment: .leading, spacing: 17) {
+            header
+            categories
+            categoryNotice
+
+            if store.selectedCategory == .bill {
+                billFilters
+            }
+
+            if store.selectedCategory == .recycleBin {
+                recycleBinNotice
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 48)
+        .padding(.bottom, 17)
     }
 
     @ViewBuilder
@@ -152,19 +169,24 @@ struct HistoryView: View {
             AnimatedNoteCardView(
                 note: note,
                 index: index,
-                animationRunID: noteAnimationRunID
+                animationRunID: noteAnimationRunID,
+                shouldAnimateEntrance: index < Self.animatedEntranceLimit,
+                animatedNoteIDs: $animatedNoteIDs
             )
         } else {
             SwipeableNoteCardView(
                 note: note,
                 index: index,
                 animationRunID: noteAnimationRunID,
+                shouldAnimateEntrance: index < Self.animatedEntranceLimit,
+                animatedNoteIDs: $animatedNoteIDs,
                 openSwipeNoteID: $openSwipeNoteID,
                 actions: swipeActions(for: note),
                 contextMenu: {
                     contextActions(for: note)
                 },
                 onTap: {
+                    isCreatingNote = false
                     editingNote = note
                 }
             )
@@ -249,19 +271,22 @@ struct HistoryView: View {
 
     private func replayNoteAnimations() {
         openSwipeNoteID = nil
+        animatedNoteIDs.removeAll()
         noteAnimationRunID += 1
     }
 
     private var scrollContentBoundsReader: some View {
         GeometryReader { proxy in
+            let scrollFrame = proxy.frame(in: .named(Self.scrollCoordinateSpace))
+            let viewFrame = proxy.frame(in: .named(Self.viewCoordinateSpace))
             Color.clear
                 .preference(
                     key: HistoryScrollContentMinYPreferenceKey.self,
-                    value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).minY
+                    value: scrollFrame.minY
                 )
                 .preference(
                     key: HistoryScrollContentMaxYPreferenceKey.self,
-                    value: proxy.frame(in: .named(Self.scrollCoordinateSpace)).maxY
+                    value: viewFrame.maxY
                 )
         }
     }
@@ -394,7 +419,10 @@ struct HistoryView: View {
             Button("永久删除", role: .destructive) { store.deletePermanently(note) }
         } else {
             Button("删除", role: .destructive) { delete(note) }
-            Button("编辑") { editingNote = note }
+            Button("编辑") {
+                isCreatingNote = false
+                editingNote = note
+            }
             Button(note.isPinned ? "取消置顶" : "置顶") { togglePin(note) }
             Menu("移动") {
                 ForEach(ThoughtCategory.allCases.filter { $0 != .recycleBin && $0 != note.category }) { category in
@@ -498,6 +526,8 @@ private struct AnimatedNoteCardView: View {
     let note: ThoughtNote
     let index: Int
     let animationRunID: Int
+    let shouldAnimateEntrance: Bool
+    @Binding var animatedNoteIDs: Set<UUID>
 
     @State private var isVisible = false
     @State private var activeAnimationRunID = 0
@@ -507,23 +537,48 @@ private struct AnimatedNoteCardView: View {
             .offset(y: isVisible ? 0 : 22)
             .opacity(isVisible ? 1 : 0)
             .onAppear {
-                playAnimation(for: animationRunID)
+                showForCurrentContext(runID: animationRunID, forceReplay: false)
             }
             .onChange(of: animationRunID) { _, newValue in
-                playAnimation(for: newValue)
+                showForCurrentContext(runID: newValue, forceReplay: true)
             }
     }
 
-    private func playAnimation(for runID: Int) {
+    private func showForCurrentContext(runID: Int, forceReplay: Bool) {
         activeAnimationRunID = runID
+        if forceReplay, shouldAnimateEntrance {
+            animatedNoteIDs.insert(note.id)
+            playAnimation(for: runID)
+            return
+        }
 
+        if animatedNoteIDs.contains(note.id) || !shouldAnimateEntrance {
+            animatedNoteIDs.insert(note.id)
+            showImmediately()
+            return
+        }
+
+        animatedNoteIDs.insert(note.id)
+        playAnimation(for: runID)
+    }
+
+    private func showImmediately() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isVisible = true
+        }
+    }
+
+    private func playAnimation(for runID: Int) {
         var resetTransaction = Transaction()
         resetTransaction.disablesAnimations = true
         withTransaction(resetTransaction) {
             isVisible = false
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05 + Double(index) * 0.05) {
+        let delay = 0.04 + min(Double(index), 5) * 0.025
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard activeAnimationRunID == runID else { return }
             withAnimation(.spring(response: 0.48, dampingFraction: 0.82)) {
                 isVisible = true
@@ -536,6 +591,8 @@ private struct SwipeableNoteCardView<ContextMenuContent: View>: View {
     let note: ThoughtNote
     let index: Int
     let animationRunID: Int
+    let shouldAnimateEntrance: Bool
+    @Binding var animatedNoteIDs: Set<UUID>
     @Binding var openSwipeNoteID: UUID?
     let actions: [NoteSwipeAction]
     @ViewBuilder let contextMenu: () -> ContextMenuContent
@@ -560,26 +617,51 @@ private struct SwipeableNoteCardView<ContextMenuContent: View>: View {
             .offset(y: isVisible ? 0 : 22)
             .opacity(isVisible ? 1 : 0)
             .onAppear {
-                playAnimation(for: animationRunID)
+                showForCurrentContext(runID: animationRunID, forceReplay: false)
             }
             .onChange(of: animationRunID) { _, newValue in
-                playAnimation(for: newValue)
+                showForCurrentContext(runID: newValue, forceReplay: true)
             }
             .onChange(of: note.id) { _, _ in
                 openSwipeNoteID = nil
             }
     }
 
-    private func playAnimation(for runID: Int) {
+    private func showForCurrentContext(runID: Int, forceReplay: Bool) {
         activeAnimationRunID = runID
+        if forceReplay, shouldAnimateEntrance {
+            animatedNoteIDs.insert(note.id)
+            playAnimation(for: runID)
+            return
+        }
 
+        if animatedNoteIDs.contains(note.id) || !shouldAnimateEntrance {
+            animatedNoteIDs.insert(note.id)
+            showImmediately()
+            return
+        }
+
+        animatedNoteIDs.insert(note.id)
+        playAnimation(for: runID)
+    }
+
+    private func showImmediately() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isVisible = true
+        }
+    }
+
+    private func playAnimation(for runID: Int) {
         var resetTransaction = Transaction()
         resetTransaction.disablesAnimations = true
         withTransaction(resetTransaction) {
             isVisible = false
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05 + Double(index) * 0.05) {
+        let delay = 0.04 + min(Double(index), 5) * 0.025
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
             guard activeAnimationRunID == runID else { return }
             withAnimation(.spring(response: 0.48, dampingFraction: 0.82)) {
                 isVisible = true
@@ -1137,11 +1219,13 @@ private struct NoteEditorView: View {
     @State private var note: ThoughtNote
     @State private var hasReminder: Bool
     @State private var amountText: String
+    let isNewNote: Bool
 
-    init(note: ThoughtNote) {
+    init(note: ThoughtNote, isNewNote: Bool = false) {
         _note = State(initialValue: note)
         _hasReminder = State(initialValue: note.reminderAt != nil)
         _amountText = State(initialValue: note.expenseAmount.amountString)
+        self.isNewNote = isNewNote
     }
 
     var body: some View {
@@ -1155,7 +1239,7 @@ private struct NoteEditorView: View {
 
                 Section("分类") {
                     Picker("收纳位置", selection: $note.category) {
-                        ForEach(ThoughtCategory.allCases) { category in
+                        ForEach(ThoughtCategory.allCases.filter { $0 != .recycleBin }) { category in
                             Text(category.rawValue).tag(category)
                         }
                     }
@@ -1226,7 +1310,11 @@ private struct NoteEditorView: View {
         note.reminderAt = note.category == .todo && hasReminder ? (note.reminderAt ?? .now.addingTimeInterval(3600)) : nil
         note.expenseAmount = note.category == .bill ? Decimal(string: amountText.trimmingCharacters(in: .whitespacesAndNewlines)) : nil
         note.expenseCategory = note.category == .bill ? (note.expenseCategory ?? .other) : nil
-        store.updateNote(note)
+        if isNewNote {
+            store.createManualNote(note)
+        } else {
+            store.updateNote(note)
+        }
         dismiss()
     }
 }

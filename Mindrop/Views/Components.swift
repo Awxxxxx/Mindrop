@@ -1,6 +1,20 @@
 import SwiftUI
 import UIKit
 
+enum HapticFeedback {
+    static func lightImpact() {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred()
+    }
+
+    static func selectionChanged() {
+        let generator = UISelectionFeedbackGenerator()
+        generator.prepare()
+        generator.selectionChanged()
+    }
+}
+
 struct ToastView: View {
     let text: String
 
@@ -726,6 +740,10 @@ extension View {
     func animateTabBarReturnWhenDisappearing(shouldAnimate: Bool) -> some View {
         background(TabBarReturnAnimator(shouldAnimate: shouldAnimate))
     }
+
+    func animateTabBarVisibility(isHidden: Bool) -> some View {
+        background(TabBarVisibilityAnimator(isHidden: isHidden))
+    }
 }
 
 private struct NavigationSwipeBackEnabler: UIViewControllerRepresentable {
@@ -843,5 +861,151 @@ private struct TabBarReturnAnimator: UIViewControllerRepresentable {
                 }
             }
         }
+    }
+}
+
+private struct TabBarVisibilityAnimator: UIViewControllerRepresentable {
+    let isHidden: Bool
+
+    func makeUIViewController(context: Context) -> Controller {
+        let controller = Controller()
+        controller.coordinator = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: Controller, context: Context) {
+        uiViewController.coordinator = context.coordinator
+        uiViewController.setTabBarHidden(isHidden, animated: context.coordinator.hasAppliedState)
+        context.coordinator.hasAppliedState = true
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator {
+        var hasAppliedState = false
+    }
+
+    final class Controller: UIViewController {
+        weak var coordinator: Coordinator?
+        private var requestedHidden = false
+        private var appliedHidden: Bool?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            applyTabBarVisibility(animated: false)
+        }
+
+        func setTabBarHidden(_ hidden: Bool, animated: Bool) {
+            requestedHidden = hidden
+            guard appliedHidden != hidden else { return }
+            appliedHidden = hidden
+            applyTabBarVisibility(animated: animated)
+        }
+
+        private func applyTabBarVisibility(animated: Bool) {
+            guard let tabBar = resolvedTabBar() else { return }
+            tabBar.layer.removeAllAnimations()
+
+            let duration = animated ? 0.24 : 0
+
+            if requestedHidden {
+                tabBar.isHidden = false
+                tabBar.isUserInteractionEnabled = false
+                UIView.animate(
+                    withDuration: duration,
+                    delay: 0,
+                    options: [.curveEaseInOut, .allowUserInteraction, .beginFromCurrentState],
+                    animations: {
+                        tabBar.alpha = 0
+                    },
+                    completion: { _ in
+                        guard self.requestedHidden else { return }
+                        tabBar.isHidden = false
+                        tabBar.isUserInteractionEnabled = false
+                        tabBar.alpha = 0
+                    }
+                )
+            } else {
+                tabBar.isHidden = false
+                tabBar.isUserInteractionEnabled = true
+
+                if animated {
+                    UIView.performWithoutAnimation {
+                        tabBar.alpha = 0
+                        tabBar.transform = CGAffineTransform(translationX: 0, y: 18)
+                        tabBar.layoutIfNeeded()
+                    }
+                }
+
+                UIView.animate(
+                    withDuration: animated ? 0.30 : duration,
+                    delay: 0,
+                    options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState],
+                    animations: {
+                        tabBar.alpha = 1
+                        tabBar.transform = .identity
+                    },
+                    completion: { _ in
+                        guard !self.requestedHidden else { return }
+                        tabBar.isHidden = false
+                        tabBar.isUserInteractionEnabled = true
+                        tabBar.alpha = 1
+                        tabBar.transform = .identity
+                    }
+                )
+            }
+        }
+
+        private func resolvedTabBar() -> UITabBar? {
+            if let tabBar = tabBarController?.tabBar {
+                return tabBar
+            }
+            if let tabBar = parentTabBarController(from: self)?.tabBar {
+                return tabBar
+            }
+            if let tabBar = view.window?.rootViewController?.nearestTabBarController()?.tabBar {
+                return tabBar
+            }
+            return UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap(\.windows)
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController?
+                .nearestTabBarController()?
+                .tabBar
+        }
+
+        private func parentTabBarController(from controller: UIViewController?) -> UITabBarController? {
+            var current = controller
+            while let controller = current {
+                if let tabBarController = controller as? UITabBarController {
+                    return tabBarController
+                }
+                if let tabBarController = controller.tabBarController {
+                    return tabBarController
+                }
+                current = controller.parent
+            }
+            return nil
+        }
+    }
+}
+
+private extension UIViewController {
+    func nearestTabBarController() -> UITabBarController? {
+        if let tabBarController = self as? UITabBarController {
+            return tabBarController
+        }
+        if let tabBarController {
+            return tabBarController
+        }
+        for child in children {
+            if let tabBarController = child.nearestTabBarController() {
+                return tabBarController
+            }
+        }
+        return presentedViewController?.nearestTabBarController()
     }
 }
