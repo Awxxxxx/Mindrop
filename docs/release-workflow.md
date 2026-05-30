@@ -14,10 +14,10 @@
 - For APNs, TestFlight/App Store builds require `APNS_ENVIRONMENT=production`; Xcode Debug builds require `sandbox`.
 - Keep feature flags off in Production until the matching client build is ready for review.
 
-Current thinking-mode test backend:
+Current staging backend:
 
-- Preview branch: `feature/thinking-mode-toggle`
-- Preview alias: `https://mindrop-git-feature-thinking-mode-toggle-xxxs-projects-551c2398.vercel.app`
+- Preview branch: `staging`
+- Preview alias: `https://mindrop-git-staging-xxxs-projects-551c2398.vercel.app`
 - Custom staging domain: `https://staging.mindrop.chat`
 
 The custom staging domain requires this DNS record at the domain provider:
