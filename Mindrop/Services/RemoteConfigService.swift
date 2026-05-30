@@ -2,6 +2,7 @@ import Foundation
 
 struct RemoteAppConfig: Decodable {
     private let appReviewURL: String?
+    private let features: RemoteFeatureFlags?
 
     var reviewURL: URL? {
         guard let appReviewURL,
@@ -10,6 +11,14 @@ struct RemoteAppConfig: Decodable {
         }
         return url
     }
+
+    var aiThinkingModeToggleEnabled: Bool? {
+        features?.aiThinkingModeToggle
+    }
+}
+
+private struct RemoteFeatureFlags: Decodable {
+    let aiThinkingModeToggle: Bool?
 }
 
 enum RemoteConfigServiceError: Error {

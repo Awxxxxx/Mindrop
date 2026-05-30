@@ -14,6 +14,8 @@ final class AppStore: ObservableObject {
     @Published var hasTrimmedChatHistory = false { didSet { persistIfReady(markCloudDirty: true) } }
     @Published var profile = UserProfile.loggedOut { didSet { persistIfReady(markCloudDirty: false) } }
     @Published var followsSystemAppearance = true { didSet { persistIfReady(markCloudDirty: true) } }
+    @Published var aiThinkingMode: AIThinkingMode = .fast { didSet { persistIfReady(markCloudDirty: false) } }
+    @Published var isAIThinkingModeToggleAvailable = AppStore.defaultAIThinkingModeToggleAvailable
     @Published var isAIThinking = false
     @Published var isAuthenticating = false
     @Published var isSavingProfile = false
@@ -57,6 +59,7 @@ final class AppStore: ObservableObject {
             hasPendingCloudChanges = snapshot.hasPendingCloudChanges
             profile = snapshot.profile
             followsSystemAppearance = snapshot.followsSystemAppearance
+            aiThinkingMode = snapshot.aiThinkingMode
             enforceChatHistoryLimit()
         } else {
             seed()
@@ -77,10 +80,19 @@ final class AppStore: ObservableObject {
         persistIfReady(markCloudDirty: false)
 
         Task {
+            await refreshRemoteAppConfig()
             await restoreSupabaseSession()
             await notificationScheduler.refreshAuthorizationState()
             await rescheduleFutureReminders()
         }
+    }
+
+    private static var defaultAIThinkingModeToggleAvailable: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
     }
 
     var isLoggedIn: Bool {
@@ -287,6 +299,7 @@ final class AppStore: ObservableObject {
         cloudSyncRevision += 1
         profile = .loggedOut
         followsSystemAppearance = true
+        aiThinkingMode = .fast
         selectedTab = .history
         selectedCategory = .todo
         session = .welcome
@@ -333,7 +346,8 @@ final class AppStore: ObservableObject {
                     text: text,
                     context: context,
                     reminderCandidates: reminders,
-                    qaCandidates: qaNotes
+                    qaCandidates: qaNotes,
+                    thinkingEnabled: aiThinkingMode == .thinking
                 )
             } catch {
                 print("Mindrop AI request failed: \(error)")
@@ -1184,8 +1198,21 @@ final class AppStore: ObservableObject {
             hasTrimmedChatHistory: hasTrimmedChatHistory,
             hasPendingCloudChanges: hasPendingCloudChanges,
             profile: profile,
-            followsSystemAppearance: followsSystemAppearance
+            followsSystemAppearance: followsSystemAppearance,
+            aiThinkingMode: aiThinkingMode
         )
+    }
+
+    private func refreshRemoteAppConfig() async {
+        do {
+            let config = try await RemoteConfigService.shared.fetchAppConfig()
+            isAIThinkingModeToggleAvailable = config.aiThinkingModeToggleEnabled ?? Self.defaultAIThinkingModeToggleAvailable
+            if !isAIThinkingModeToggleAvailable, aiThinkingMode == .thinking {
+                aiThinkingMode = .fast
+            }
+        } catch {
+            print("Mindrop remote config fetch failed: \(error.localizedDescription)")
+        }
     }
 
     private func removeBuiltInSampleDataFromCurrentState() {

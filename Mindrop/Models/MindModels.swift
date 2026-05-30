@@ -13,6 +13,27 @@ enum AppTab: String, CaseIterable, Codable {
     case profile = "我的"
 }
 
+enum AIThinkingMode: String, CaseIterable, Codable, Identifiable {
+    case fast
+    case thinking
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fast: "快速模式"
+        case .thinking: "思考模式"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .fast: "bolt.fill"
+        case .thinking: "sparkles"
+        }
+    }
+}
+
 enum ThoughtCategory: String, CaseIterable, Codable, Identifiable {
     case todo = "待办提醒"
     case bill = "账单记录"

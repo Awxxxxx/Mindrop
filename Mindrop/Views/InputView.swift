@@ -21,14 +21,23 @@ struct InputView: View {
                     .ignoresSafeArea()
 
                 VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("对话记录")
-                            .font(.system(size: 29, weight: .semibold))
-                            .foregroundStyle(Color.mindInk)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("对话记录")
+                                .font(.system(size: 29, weight: .semibold))
+                                .foregroundStyle(Color.mindInk)
 
-                        Text("内容由AI生成，请注意甄别。")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.mindInk.opacity(0.40))
+                            Text("内容由AI生成，请注意甄别。")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.mindInk.opacity(0.40))
+                        }
+
+                        Spacer(minLength: 8)
+
+                        if store.isAIThinkingModeToggleAvailable {
+                            AIThinkingModeMenu(mode: $store.aiThinkingMode)
+                                .padding(.top, 2)
+                        }
                     }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 22)
@@ -257,6 +266,49 @@ private struct MessageScrollOffsetKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+private struct AIThinkingModeMenu: View {
+    @Binding var mode: AIThinkingMode
+
+    var body: some View {
+        Menu {
+            ForEach(AIThinkingMode.allCases) { option in
+                Button {
+                    mode = option
+                } label: {
+                    Label(option.title, systemImage: option.systemImageName)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: mode.systemImageName)
+                    .font(.system(size: 11, weight: .heavy))
+                Text(mode.title)
+                    .font(.system(size: 13, weight: .heavy))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .opacity(0.58)
+            }
+            .foregroundStyle(mode == .thinking ? Color.mindAccent : Color.mindInk.opacity(0.68))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 11)
+            .frame(height: 34)
+            .background(Color.cardSurface.opacity(0.88), in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(
+                        mode == .thinking ? Color.mindAccent.opacity(0.22) : Color.separatorLine,
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: .black.opacity(0.025), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("AI回复模式")
+        .accessibilityValue(mode.title)
     }
 }
 

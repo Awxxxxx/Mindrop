@@ -57,7 +57,8 @@ final class AIService {
         context: [ChatMessage] = [],
         reminderCandidates: [ThoughtNote] = [],
         qaCandidates: [ThoughtNote] = [],
-        now: Date = .now
+        now: Date = .now,
+        thinkingEnabled: Bool = false
     ) async throws -> AIAnalysisResult {
         guard let endpoint else { throw AIServiceError.endpointNotConfigured }
 
@@ -72,7 +73,8 @@ final class AIService {
                 reminders: reminderCandidates.prefix(20).map { AIReminderCandidate(note: $0) },
                 qaNotes: qaCandidates.prefix(1).map { AINoteCandidate(note: $0) },
                 now: ISO8601DateFormatter.mindrop.string(from: now),
-                timeZone: TimeZone.current.identifier
+                timeZone: TimeZone.current.identifier,
+                thinkingEnabled: thinkingEnabled
             )
         )
 
@@ -163,6 +165,7 @@ private struct AIAnalyzeRequest: Encodable {
     let qaNotes: [AINoteCandidate]
     let now: String
     let timeZone: String
+    let thinkingEnabled: Bool
 }
 
 private struct AIReminderNotificationRequest: Encodable {

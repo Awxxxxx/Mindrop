@@ -130,6 +130,7 @@ export default async function handler(request, response) {
   timing.task = "analysis";
 
   const { text, now, timeZone, context, reminders, qaNotes } = requestBody;
+  const thinkingEnabled = requestBody?.thinkingEnabled === true;
   if (typeof text !== "string" || text.trim().length === 0) {
     sendJSON(response, 400, { error: "Missing text" }, timing, request);
     return;
@@ -149,9 +150,11 @@ export default async function handler(request, response) {
       context: normalizedContext,
       reminders: normalizedReminders,
       qaNotes: normalizedQANotes,
+      thinkingEnabled,
     });
     const modelPayloadText = JSON.stringify(modelPayload);
     timing.modelRequestBytes = byteLength(modelPayloadText);
+    timing.thinkingMode = thinkingEnabled ? "thinking" : "fast";
     timing.contextCount = normalizedContext.length;
     timing.reminderCandidateCount = normalizedReminders.length;
     timing.qaCandidateCount = normalizedQANotes.length;
@@ -471,7 +474,7 @@ function modelRequestBody(config, input) {
     model: config.model,
     max_tokens: 1600,
     temperature: 0.2,
-    ...modelThinkingControl(config),
+    ...modelThinkingControl(config, input.thinkingEnabled === true),
     messages: [
       {
         role: "system",
@@ -506,7 +509,7 @@ function modelReminderNotificationRequestBody(config, input) {
     model: config.model,
     max_tokens: 300,
     temperature: 0.45,
-    ...modelThinkingControl(config),
+    ...modelThinkingControl(config, false),
     messages: [
       {
         role: "system",
@@ -520,15 +523,19 @@ function modelReminderNotificationRequestBody(config, input) {
   };
 }
 
-function modelThinkingControl(config) {
+function modelThinkingControl(config, thinkingEnabled = false) {
   if (config.protocol !== "openai" || !isDeepSeekURL(config.endpoint)) {
     return {};
   }
-  return {
+  const control = {
     thinking: {
-      type: "disabled",
+      type: thinkingEnabled ? "enabled" : "disabled",
     },
   };
+  if (thinkingEnabled) {
+    control.reasoning_effort = "high";
+  }
+  return control;
 }
 
 function isDeepSeekURL(value) {
