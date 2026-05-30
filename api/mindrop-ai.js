@@ -153,8 +153,13 @@ export default async function handler(request, response) {
       thinkingEnabled,
     });
     const modelPayloadText = JSON.stringify(modelPayload);
+    timing.model = config.model;
+    timing.modelHost = safeURLHost(config.endpoint);
     timing.modelRequestBytes = byteLength(modelPayloadText);
     timing.thinkingMode = thinkingEnabled ? "thinking" : "fast";
+    timing.thinkingRequested = thinkingEnabled;
+    timing.thinkingSent = modelPayload?.thinking?.type || "not_sent";
+    timing.reasoningEffort = modelPayload?.reasoning_effort || "not_sent";
     timing.contextCount = normalizedContext.length;
     timing.reminderCandidateCount = normalizedReminders.length;
     timing.qaCandidateCount = normalizedQANotes.length;
@@ -185,6 +190,7 @@ export default async function handler(request, response) {
     const parseModelStartedAt = nowMs();
     const completion = JSON.parse(raw);
     const content = extractModelText(completion, config.protocol);
+    timing.modelReasoningChars = Array.from(extractModelReasoningText(completion, config.protocol)).length;
     timing.modelContentChars = Array.from(content).length;
     const result = normalizeResult(parseModelJSON(content), text.trim(), {
       reminders: normalizedReminders,
@@ -222,7 +228,10 @@ async function handleReminderNotificationRequest(requestBody, response, config, 
       timeZone: requestBody.timeZone,
     });
     const modelPayloadText = JSON.stringify(modelPayload);
+    timing.model = config.model;
+    timing.modelHost = safeURLHost(config.endpoint);
     timing.modelRequestBytes = byteLength(modelPayloadText);
+    timing.thinkingSent = modelPayload?.thinking?.type || "not_sent";
 
     timing.stage = "modelFetch";
     modelFetchStartedAt = nowMs();
@@ -249,6 +258,7 @@ async function handleReminderNotificationRequest(requestBody, response, config, 
     const parseModelStartedAt = nowMs();
     const completion = JSON.parse(raw);
     const content = extractModelText(completion, config.protocol);
+    timing.modelReasoningChars = Array.from(extractModelReasoningText(completion, config.protocol)).length;
     timing.modelContentChars = Array.from(content).length;
     const result = normalizeReminderNotificationResult(parseModelJSON(content), note);
     markTiming(timing, "parseModelMs", parseModelStartedAt);
@@ -307,6 +317,14 @@ function roundTiming(value) {
 
 function byteLength(value) {
   return Buffer.byteLength(String(value || ""), "utf8");
+}
+
+function safeURLHost(value) {
+  try {
+    return new URL(value).hostname;
+  } catch (error) {
+    return "unknown";
+  }
 }
 
 function attachTimingError(timing, stage, error) {
@@ -704,6 +722,28 @@ function extractModelText(completion, protocol) {
     return completion.content
       .filter((item) => item?.type === "text" && typeof item.text === "string")
       .map((item) => item.text)
+      .join("");
+  }
+  return "";
+}
+
+function extractModelReasoningText(completion, protocol) {
+  if (protocol === "openai") {
+    const message = completion?.choices?.[0]?.message || {};
+    const reasoning = message.reasoning_content || message.reasoning || "";
+    if (typeof reasoning === "string") {
+      return reasoning;
+    }
+    if (reasoning && typeof reasoning === "object") {
+      return JSON.stringify(reasoning);
+    }
+    return "";
+  }
+
+  if (Array.isArray(completion?.content)) {
+    return completion.content
+      .filter((item) => item?.type === "thinking" && typeof item.thinking === "string")
+      .map((item) => item.thinking)
       .join("");
   }
   return "";

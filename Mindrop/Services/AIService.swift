@@ -26,6 +26,7 @@ enum AIAnalysisAction: Equatable {
 
 final class AIService {
     private static let productionEndpoint = URL(string: "https://www.mindrop.chat/api/mindrop-ai")
+    private static let stagingEndpoint = URL(string: "https://staging.mindrop.chat/api/mindrop-ai")
 
     private let endpoint: URL?
     private let session: URLSession
@@ -154,7 +155,11 @@ final class AIService {
            !value.isEmpty {
             return url
         }
+#if DEBUG
+        return stagingEndpoint
+#else
         return productionEndpoint
+#endif
     }
 }
 
