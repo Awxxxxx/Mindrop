@@ -14,6 +14,9 @@ export default function handler(request, response) {
   response.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
   response.status(200).json({
     appReviewURL: normalizeURL(process.env.MINDROP_APP_REVIEW_URL),
+    features: {
+      aiThinkingModeToggle: environmentBoolean(process.env.FEATURE_AI_THINKING_MODE_TOGGLE, false),
+    },
   });
 }
 
@@ -38,4 +41,19 @@ function normalizeURL(value) {
   } catch {
     return null;
   }
+}
+
+function environmentBoolean(value, fallback = false) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
 }

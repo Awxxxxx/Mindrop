@@ -1,6 +1,12 @@
 import SwiftUI
 import UIKit
 
+private enum InputComposerPresentation: Equatable {
+    case idle
+    case text
+    case voice
+}
+
 struct InputView: View {
     @EnvironmentObject private var store: AppStore
     @Binding var draftText: String
@@ -9,10 +15,25 @@ struct InputView: View {
     let submit: () -> Void
     let startVoiceInput: () -> Void
     let finishVoiceInput: () -> Void
+    let cancelVoiceInput: () -> Void
+    @Binding var isVoiceComposerActive: Bool
     @State private var isInputChromeHidden = false
     @State private var isTrackingMessageScroll = false
     @State private var revealInputChromeWorkItem: DispatchWorkItem?
+    @State private var inputComposerPresentation: InputComposerPresentation = .idle
+    @State private var textInputCloseRequestID = 0
     private let bottomAnchorID = "message-bottom-anchor"
+
+    private var inputComposerBottomPadding: CGFloat {
+        switch inputComposerPresentation {
+        case .idle:
+            return 86
+        case .text:
+            return 6
+        case .voice:
+            return -6
+        }
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -21,14 +42,23 @@ struct InputView: View {
                     .ignoresSafeArea()
 
                 VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("对话记录")
-                            .font(.system(size: 29, weight: .semibold))
-                            .foregroundStyle(Color.mindInk)
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("对话记录")
+                                .font(.system(size: 29, weight: .semibold))
+                                .foregroundStyle(Color.mindInk)
 
-                        Text("内容由AI生成，请注意甄别。")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.mindInk.opacity(0.40))
+                            Text("内容由AI生成，请注意甄别。")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.mindInk.opacity(0.40))
+                        }
+
+                        Spacer(minLength: 8)
+
+                        if store.isAIThinkingModeToggleAvailable {
+                            AIThinkingModeMenu(mode: $store.aiThinkingMode)
+                                .padding(.top, 2)
+                        }
                     }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 22)
@@ -77,8 +107,10 @@ struct InputView: View {
                             .padding(.bottom, 18)
                             .background(scrollOffsetReader)
                         }
+                        .contentShape(Rectangle())
                         .coordinateSpace(name: "messageScroll")
                         .simultaneousGesture(messageScrollGesture)
+                        .simultaneousGesture(chatAreaTapGesture)
                         .onPreferenceChange(MessageScrollOffsetKey.self) { _ in
                             guard isTrackingMessageScroll else { return }
                             scheduleInputChromeReveal()
@@ -106,30 +138,45 @@ struct InputView: View {
             .overlay(alignment: .bottomTrailing) {
                 FloatingInputTrigger(
                     draftText: $draftText,
+                    presentation: $inputComposerPresentation,
+                    closeTextInputRequestID: textInputCloseRequestID,
                     availableWidth: proxy.size.width,
                     speechState: speechState,
                     transcript: transcript,
                     submit: submit,
                     startVoiceInput: startVoiceInput,
-                    finishVoiceInput: finishVoiceInput
+                    finishVoiceInput: finishVoiceInput,
+                    cancelVoiceInput: cancelVoiceInput
                 )
                 .offset(x: isInputChromeHidden ? proxy.size.width : 0)
                 .opacity(isInputChromeHidden ? 0 : 1)
                 .allowsHitTesting(!isInputChromeHidden)
-                .padding(.bottom, 86)
+                .padding(.bottom, inputComposerBottomPadding)
+                .offset(y: inputComposerPresentation == .voice ? 64 : 0)
                 .animation(.spring(response: 0.38, dampingFraction: 0.84), value: isInputChromeHidden)
+                .animation(.spring(response: 0.36, dampingFraction: 0.82), value: inputComposerPresentation)
+                .ignoresSafeArea(.container, edges: inputComposerPresentation == .voice ? .bottom : [])
             }
             .onAppear {
+                updateVoiceComposerActive(for: inputComposerPresentation)
                 if store.selectedTab == .input {
                     playInputChromeEntrance(after: 0.12)
                 }
             }
             .onChange(of: store.selectedTab) { _, tab in
                 guard tab == .input else {
+                    isVoiceComposerActive = false
                     cancelPendingInputChromeReveal()
                     return
                 }
                 playInputChromeEntrance()
+                updateVoiceComposerActive(for: inputComposerPresentation)
+            }
+            .onChange(of: inputComposerPresentation) { _, presentation in
+                updateVoiceComposerActive(for: presentation)
+            }
+            .onDisappear {
+                isVoiceComposerActive = false
             }
         }
     }
@@ -148,11 +195,22 @@ struct InputView: View {
         DragGesture(minimumDistance: 1)
             .onChanged { _ in
                 guard store.selectedTab == .input else { return }
+                if inputComposerPresentation == .text {
+                    requestTextInputClose()
+                    return
+                }
                 isTrackingMessageScroll = true
                 hideInputChromeForScroll()
             }
             .onEnded { _ in
                 scheduleInputChromeReveal()
+            }
+    }
+
+    private var chatAreaTapGesture: some Gesture {
+        TapGesture()
+            .onEnded {
+                requestTextInputClose()
             }
     }
 
@@ -187,6 +245,11 @@ struct InputView: View {
 
     private func hideInputChromeForScroll() {
         cancelPendingInputChromeReveal()
+        if inputComposerPresentation == .text {
+            requestTextInputClose()
+            return
+        }
+        guard inputComposerPresentation == .idle else { return }
         guard !isInputChromeHidden else { return }
         withAnimation(.spring(response: 0.30, dampingFraction: 0.88)) {
             isInputChromeHidden = true
@@ -226,6 +289,15 @@ struct InputView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
+    private func requestTextInputClose() {
+        guard inputComposerPresentation == .text else { return }
+        textInputCloseRequestID += 1
+    }
+
+    private func updateVoiceComposerActive(for presentation: InputComposerPresentation) {
+        isVoiceComposerActive = presentation == .voice && store.selectedTab == .input
+    }
+
     private func cancelPendingInputChromeReveal() {
         revealInputChromeWorkItem?.cancel()
         revealInputChromeWorkItem = nil
@@ -260,6 +332,161 @@ private struct MessageScrollOffsetKey: PreferenceKey {
     }
 }
 
+private struct AIThinkingModeMenu: View {
+    @Binding var mode: AIThinkingMode
+    @State private var isClickRingVisible = false
+    @State private var clickRingProgress: CGFloat = 0
+    @State private var clickRingWorkItem: DispatchWorkItem?
+
+    var body: some View {
+        Button {
+            HapticFeedback.selectionChanged()
+            playClickRing()
+            withAnimation(.easeInOut(duration: 0.16)) {
+                mode = mode == .fast ? .thinking : .fast
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: mode.systemImageName)
+                    .font(.system(size: 11, weight: .heavy))
+                Text(mode.title)
+                    .font(.system(size: 13, weight: .heavy))
+            }
+            .foregroundStyle(mode == .thinking ? Color.mindAccent : Color.mindInk.opacity(0.68))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 11)
+            .frame(height: 34)
+            .background {
+                Capsule()
+                    .fill(Color.cardSurface.opacity(0.88))
+                    .shadow(color: .black.opacity(0.025), radius: 8, y: 4)
+            }
+            .overlay {
+                ZStack {
+                    Capsule()
+                        .stroke(
+                            mode == .thinking ? Color.mindAccent.opacity(0.22) : Color.separatorLine,
+                            lineWidth: 1
+                        )
+
+                    if isClickRingVisible {
+                        ModeSwitchClickRing(progress: clickRingProgress)
+                            .transition(.opacity)
+                    }
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onDisappear {
+            clickRingWorkItem?.cancel()
+        }
+        .accessibilityLabel("AI回复模式")
+        .accessibilityValue(mode.title)
+        .accessibilityHint("点击切换到\(mode == .fast ? AIThinkingMode.thinking.title : AIThinkingMode.fast.title)")
+    }
+
+    private func playClickRing() {
+        clickRingWorkItem?.cancel()
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isClickRingVisible = true
+            clickRingProgress = 0
+        }
+
+        DispatchQueue.main.async {
+            withAnimation(.linear(duration: 0.5)) {
+                clickRingProgress = 1
+            }
+        }
+
+        let workItem = DispatchWorkItem {
+            withAnimation(.easeOut(duration: 0.12)) {
+                isClickRingVisible = false
+            }
+        }
+        clickRingWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+    }
+}
+
+private struct ModeSwitchClickRing: View {
+    let progress: CGFloat
+
+    var body: some View {
+        ZStack {
+            Capsule()
+                .stroke(
+                    AngularGradient(
+                        colors: [
+                            Color.mindAccent.opacity(0.95),
+                            Color(red: 0.36, green: 0.66, blue: 1.00).opacity(0.92),
+                            Color(red: 0.96, green: 0.70, blue: 0.24).opacity(0.88),
+                            Color(red: 0.92, green: 0.36, blue: 0.58).opacity(0.88),
+                            Color.mindAccent.opacity(0.95)
+                        ],
+                        center: .center
+                        ),
+                        lineWidth: 1.2
+                    )
+                    .opacity(0.24)
+
+                CapsuleOrbitSegment(progress: progress, length: 0.32)
+                    .stroke(
+                        AngularGradient(
+                        colors: [
+                            Color(red: 0.40, green: 0.72, blue: 1.00),
+                            Color(red: 1.00, green: 0.78, blue: 0.28),
+                            Color(red: 0.92, green: 0.32, blue: 0.62),
+                            Color.mindAccent,
+                            Color(red: 0.40, green: 0.72, blue: 1.00)
+                            ],
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+                    )
+                    .shadow(color: Color.mindAccent.opacity(0.28), radius: 4)
+            }
+        .padding(-2)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct CapsuleOrbitSegment: Shape {
+    var progress: CGFloat
+    let length: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let lineInset: CGFloat = 1.5
+        let pathRect = rect.insetBy(dx: lineInset, dy: lineInset)
+        let basePath = Path(
+            roundedRect: pathRect,
+            cornerRadius: pathRect.height / 2,
+            style: .continuous
+        )
+        let start = progress - floor(progress)
+        let clampedLength = min(max(length, 0.02), 0.96)
+        let end = start + clampedLength
+
+        var path = Path()
+        if end <= 1 {
+            path.addPath(basePath.trimmedPath(from: start, to: end))
+        } else {
+            path.addPath(basePath.trimmedPath(from: start, to: 1))
+            path.addPath(basePath.trimmedPath(from: 0, to: end - 1))
+        }
+        return path
+    }
+}
+
 private struct ChatBubble: View {
     @EnvironmentObject private var store: AppStore
     let message: ChatMessage
@@ -285,6 +512,7 @@ private struct ChatBubble: View {
 
                 if message.category == .qa && store.streamingAssistantMessageID != message.id && !isReadOnlySample {
                     Button("保存至灵感沉淀") {
+                        HapticFeedback.lightImpact()
                         store.saveConversationToIdea(message: message)
                     }
                         .font(.footnote.weight(.medium))
@@ -391,34 +619,55 @@ private struct ThinkingDot: View {
 
 private struct FloatingInputTrigger: View {
     @Binding var draftText: String
+    @Binding var presentation: InputComposerPresentation
+    let closeTextInputRequestID: Int
     let availableWidth: CGFloat
     let speechState: SpeechState
     let transcript: String
     let submit: () -> Void
     let startVoiceInput: () -> Void
     let finishVoiceInput: () -> Void
+    let cancelVoiceInput: () -> Void
     @FocusState private var isFocused: Bool
     @State private var isTextInputVisible = false
     @State private var isTriggerPressed = false
     @State private var isVoicePressed = false
+    @State private var isCancelingVoice = false
     @State private var didStartVoice = false
     @State private var holdWorkItem: DispatchWorkItem?
     @State private var voiceStartWorkItem: DispatchWorkItem?
 
     private let idleWidth: CGFloat = 148
     private let sideInset: CGFloat = 22
+    private let voiceSideInset: CGFloat = 18
     private let idleTrailingInset: CGFloat = 14
 
     private var panelWidth: CGFloat {
         max(280, availableWidth - sideInset * 2)
     }
 
+    private var voicePanelWidth: CGFloat {
+        max(280, availableWidth - voiceSideInset * 2)
+    }
+
     private var voiceMode: Bool {
         isVoicePressed || speechState.isRecording
     }
 
+    private var currentPresentation: InputComposerPresentation {
+        if voiceMode { return .voice }
+        if isTextInputVisible { return .text }
+        return .idle
+    }
+
     private var isExpanded: Bool {
         isTextInputVisible || voiceMode
+    }
+
+    private let textPanelHeight: CGFloat = 112
+
+    private var voicePanelHeight: CGFloat {
+        min(320, max(276, availableWidth * 0.78))
     }
 
     var body: some View {
@@ -426,33 +675,45 @@ private struct FloatingInputTrigger: View {
             if !isExpanded {
                 idleTrigger
                     .padding(.trailing, idleTrailingInset)
-                    .transition(.scale(scale: 0.92, anchor: .bottomTrailing).combined(with: .opacity))
+                    .transition(.scale(scale: 0.18, anchor: .bottomTrailing).combined(with: .opacity))
             }
 
             if isTextInputVisible && !voiceMode {
                 textInputPanel
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .transition(.scale(scale: 0.95, anchor: .bottomTrailing).combined(with: .opacity))
+                    .transition(.scale(scale: 0.18, anchor: .bottomTrailing).combined(with: .opacity))
             }
 
-            if voiceMode {
-                voiceInputPanel
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .transition(.scale(scale: 0.96, anchor: .bottomTrailing).combined(with: .opacity))
-            }
+            voiceInputPanel
+                .frame(maxWidth: .infinity, alignment: .center)
+                .opacity(voiceMode ? 1 : 0)
+                .offset(y: voiceMode ? 0 : voicePanelHeight + 44)
+                .allowsHitTesting(false)
+                .accessibilityHidden(!voiceMode)
 
             VoiceHoldControl(
                 onBegan: beginTriggerPress,
+                onMoved: updateVoiceCancelState,
                 onEnded: endTriggerPress
             )
-            .frame(width: 70, height: 70)
+            .frame(width: voiceMode ? voicePanelWidth : 70, height: voiceMode ? voicePanelHeight : 70)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .allowsHitTesting(!isTextInputVisible || voiceMode)
         }
-        .frame(width: isExpanded ? availableWidth : idleWidth + idleTrailingInset, height: voiceMode ? 150 : (isTextInputVisible ? 74 : 92), alignment: .bottomTrailing)
-        .animation(.spring(response: 0.34, dampingFraction: 0.78, blendDuration: 0.08), value: isExpanded)
+        .frame(width: availableWidth, height: voiceMode ? voicePanelHeight : (isTextInputVisible ? textPanelHeight : 92), alignment: .bottomTrailing)
+        .animation(.spring(response: 0.42, dampingFraction: 0.78, blendDuration: 0.08), value: isTextInputVisible)
+        .animation(.easeOut(duration: 0.24), value: voiceMode)
+        .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isCancelingVoice)
+        .onAppear {
+            presentation = currentPresentation
+        }
+        .onChange(of: currentPresentation) { _, value in
+            presentation = value
+        }
+        .onChange(of: closeTextInputRequestID) { _, _ in
+            closeTextInput()
+        }
         .onChange(of: isFocused) { _, focused in
-            guard !focused, draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard !isTriggerPressed, !focused, draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
                 isTextInputVisible = false
             }
@@ -483,48 +744,76 @@ private struct FloatingInputTrigger: View {
     }
 
     private var textInputPanel: some View {
-        HStack(spacing: 10) {
-            TextField("你只管说，剩下的交给我", text: $draftText)
+        HStack(alignment: .bottom, spacing: 10) {
+            TextField("你只管说，剩下的交给我", text: $draftText, axis: .vertical)
                 .focused($isFocused)
                 .submitLabel(.send)
                 .onSubmit(commitText)
+                .onChange(of: draftText) { _, value in
+                    submitTextIfNeededAfterReturn(in: value)
+                }
                 .font(.system(size: 16, weight: .regular))
                 .foregroundStyle(Color.mindInk.opacity(0.86))
-                .lineLimit(1)
+                .lineLimit(2...3)
                 .textFieldStyle(.plain)
+                .frame(minHeight: 66, alignment: .topLeading)
+                .padding(.vertical, 8)
 
             Button(action: commitText) {
                 Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 28, weight: .medium))
+                    .font(.system(size: 31, weight: .medium))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Color.mindInk.opacity(0.80))
             }
+            .frame(width: 40, height: 40)
             .buttonStyle(.plain)
             .accessibilityLabel("发送")
         }
-        .padding(.horizontal, 12)
-        .frame(width: panelWidth, height: 62)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(width: panelWidth, height: textPanelHeight)
         .background {
-            InputGlassBackground(cornerRadius: 31)
+            InputGlassBackground(cornerRadius: 32)
         }
     }
 
     private var voiceInputPanel: some View {
-        VStack(spacing: 16) {
-            Text(voiceText)
-                .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(Color.mindInk.opacity(0.74))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .center)
+        VStack(spacing: 0) {
+            Text(isCancelingVoice ? "松手取消发送" : "松开即可发送")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(isCancelingVoice ? Color.red.opacity(0.72) : Color.mindInk.opacity(0.42))
+                .padding(.top, 18)
 
-            InputWaveformView()
-                .frame(height: 34)
+            Spacer(minLength: 14)
+
+            VStack(spacing: 14) {
+                Text(voiceText)
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Color.mindInk.opacity(0.74))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .center)
+
+                InputWaveformView()
+                    .frame(height: 34)
+            }
+
+            Spacer(minLength: 14)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill((isCancelingVoice ? Color.red : Color.mindInk).opacity(isCancelingVoice ? 0.10 : 0.05))
+
+                TrashCancelIcon(isOpen: isCancelingVoice)
+                    .frame(width: 54, height: 54)
+                    .foregroundStyle(isCancelingVoice ? Color.red.opacity(0.74) : Color.mindInk.opacity(0.42))
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: voicePanelHeight / 3)
         }
-        .padding(.horizontal, 22)
-        .frame(width: panelWidth, height: 132)
+        .frame(width: voicePanelWidth, height: voicePanelHeight)
         .background {
-            InputGlassBackground(cornerRadius: 32)
+            InputGlassBackground(cornerRadius: 36)
         }
     }
 
@@ -543,9 +832,32 @@ private struct FloatingInputTrigger: View {
         submit()
     }
 
+    private func submitTextIfNeededAfterReturn(in value: String) {
+        guard value.contains(where: \.isNewline) else { return }
+        let sanitized = value
+            .split(whereSeparator: \.isNewline)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        draftText = sanitized
+        guard !sanitized.isEmpty else { return }
+        commitText()
+    }
+
+    private func closeTextInput() {
+        guard isTextInputVisible, !voiceMode else { return }
+        isFocused = false
+        withAnimation(.spring(response: 0.30, dampingFraction: 0.82)) {
+            isTextInputVisible = false
+        }
+    }
+
     private func beginTriggerPress() {
-        guard !isExpanded else { return }
+        guard !voiceMode else { return }
+        HapticFeedback.lightImpact()
         isTriggerPressed = true
+        if isTextInputVisible {
+            isFocused = false
+        }
         let workItem = DispatchWorkItem {
             guard isTriggerPressed else { return }
             beginVoiceHold()
@@ -554,7 +866,17 @@ private struct FloatingInputTrigger: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.22, execute: workItem)
     }
 
-    private func endTriggerPress() {
+    private func updateVoiceCancelState(_ location: CGPoint?) {
+        guard voiceMode, let location else { return }
+        let shouldCancel = location.y > voicePanelHeight * (2.0 / 3.0)
+        guard shouldCancel != isCancelingVoice else { return }
+        isCancelingVoice = shouldCancel
+        HapticFeedback.selectionChanged()
+    }
+
+    private func endTriggerPress(_ location: CGPoint?) {
+        updateVoiceCancelState(location)
+        let wasTextInputVisible = isTextInputVisible
         let shouldOpenTextInput = !didStartVoice
         holdWorkItem?.cancel()
         holdWorkItem = nil
@@ -562,6 +884,12 @@ private struct FloatingInputTrigger: View {
 
         if didStartVoice {
             endVoiceHold()
+        } else if shouldOpenTextInput && wasTextInputVisible {
+            if draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                isFocused = true
+            } else {
+                commitText()
+            }
         } else if shouldOpenTextInput {
             showTextInput()
         }
@@ -580,9 +908,10 @@ private struct FloatingInputTrigger: View {
     private func beginVoiceHold() {
         guard !didStartVoice else { return }
         didStartVoice = true
+        isCancelingVoice = false
         isFocused = false
         isTextInputVisible = false
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.74)) {
+        withAnimation(.easeOut(duration: 0.24)) {
             isVoicePressed = true
         }
         let workItem = DispatchWorkItem {
@@ -595,13 +924,19 @@ private struct FloatingInputTrigger: View {
 
     private func endVoiceHold() {
         guard didStartVoice else { return }
+        let shouldCancel = isCancelingVoice
         didStartVoice = false
+        isCancelingVoice = false
         voiceStartWorkItem?.cancel()
         voiceStartWorkItem = nil
-        withAnimation(.spring(response: 0.30, dampingFraction: 0.78)) {
+        withAnimation(.easeOut(duration: 0.20)) {
             isVoicePressed = false
         }
-        finishVoiceInput()
+        if shouldCancel {
+            cancelVoiceInput()
+        } else {
+            finishVoiceInput()
+        }
     }
 }
 
@@ -642,9 +977,46 @@ private struct InputWaveformView: View {
     }
 }
 
+private struct TrashCancelIcon: View {
+    let isOpen: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(lineWidth: 2.4)
+                .frame(width: 28, height: 31)
+                .offset(y: 7)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(.foreground)
+                    .frame(width: 12, height: 4)
+                    .offset(y: -3)
+
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(.foreground)
+                    .frame(width: 34, height: 4)
+                    .offset(y: 3)
+            }
+            .frame(width: 34, height: 12)
+            .rotationEffect(.degrees(isOpen ? -24 : 0), anchor: .leading)
+            .offset(y: isOpen ? -18 : -15)
+
+            HStack(spacing: 5) {
+                Capsule().fill(.foreground).frame(width: 2.2, height: 17)
+                Capsule().fill(.foreground).frame(width: 2.2, height: 17)
+            }
+            .opacity(0.70)
+            .offset(y: 9)
+        }
+        .animation(.spring(response: 0.22, dampingFraction: 0.62), value: isOpen)
+    }
+}
+
 private struct VoiceHoldControl: UIViewRepresentable {
     var onBegan: () -> Void
-    var onEnded: () -> Void
+    var onMoved: (CGPoint?) -> Void
+    var onEnded: (CGPoint?) -> Void
 
     func makeUIView(context: Context) -> TrackingControl {
         let control = TrackingControl()
@@ -655,24 +1027,32 @@ private struct VoiceHoldControl: UIViewRepresentable {
 
     func updateUIView(_ uiView: TrackingControl, context: Context) {
         uiView.onBegan = onBegan
+        uiView.onMoved = onMoved
         uiView.onEnded = onEnded
     }
 
     final class TrackingControl: UIControl {
         var onBegan: (() -> Void)?
-        var onEnded: (() -> Void)?
+        var onMoved: ((CGPoint?) -> Void)?
+        var onEnded: ((CGPoint?) -> Void)?
 
         override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
             onBegan?()
+            onMoved?(touch.location(in: self))
+            return true
+        }
+
+        override func continueTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
+            onMoved?(touch.location(in: self))
             return true
         }
 
         override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
-            onEnded?()
+            onEnded?(touch?.location(in: self))
         }
 
         override func cancelTracking(with event: UIEvent?) {
-            onEnded?()
+            onEnded?(nil)
         }
     }
 }

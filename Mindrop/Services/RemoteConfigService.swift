@@ -2,6 +2,7 @@ import Foundation
 
 struct RemoteAppConfig: Decodable {
     private let appReviewURL: String?
+    private let features: RemoteFeatureFlags?
 
     var reviewURL: URL? {
         guard let appReviewURL,
@@ -10,6 +11,14 @@ struct RemoteAppConfig: Decodable {
         }
         return url
     }
+
+    var aiThinkingModeToggleEnabled: Bool? {
+        features?.aiThinkingModeToggle
+    }
+}
+
+private struct RemoteFeatureFlags: Decodable {
+    let aiThinkingModeToggle: Bool?
 }
 
 enum RemoteConfigServiceError: Error {
@@ -22,6 +31,7 @@ final class RemoteConfigService {
     static let shared = RemoteConfigService()
 
     private static let productionEndpoint = URL(string: "https://www.mindrop.chat/api/app-config")
+    private static let stagingEndpoint = URL(string: "https://staging.mindrop.chat/api/app-config")
 
     private let endpoint: URL?
     private let session: URLSession
@@ -63,7 +73,11 @@ final class RemoteConfigService {
            let url = URL.mindropHTTPSURL(from: value) {
             return url
         }
+#if DEBUG
+        return stagingEndpoint
+#else
         return productionEndpoint
+#endif
     }
 }
 

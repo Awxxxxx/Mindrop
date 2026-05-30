@@ -6,6 +6,8 @@ struct MainView: View {
     @State private var draftText = ""
     @State private var voiceStartTask: Task<Void, Never>?
     @State private var shouldFinishVoiceAfterStart = false
+    @State private var shouldCancelVoiceAfterStart = false
+    @State private var isVoiceComposerActive = false
 
     var body: some View {
         TabView(selection: $store.selectedTab) {
@@ -22,7 +24,9 @@ struct MainView: View {
                 transcript: transcriber.transcript,
                 submit: submitDraft,
                 startVoiceInput: startVoiceInput,
-                finishVoiceInput: finishVoiceInput
+                finishVoiceInput: finishVoiceInput,
+                cancelVoiceInput: cancelVoiceInput,
+                isVoiceComposerActive: $isVoiceComposerActive
             )
             .tabItem {
                 Image("MindropTabIcon")
@@ -38,6 +42,7 @@ struct MainView: View {
                 .tag(AppTab.profile)
         }
         .tint(Color.mindInk.opacity(0.88))
+        .animateTabBarVisibility(isHidden: isVoiceComposerActive && store.selectedTab == .input)
         .animation(.spring(response: 0.38, dampingFraction: 0.86), value: store.selectedTab)
         .onChange(of: transcriber.transcript) { _, newValue in
             guard transcriber.state.isRecording else { return }
@@ -52,7 +57,10 @@ struct MainView: View {
             }
         }
         .onChange(of: store.selectedTab) { _, tab in
-            guard tab == .input else { return }
+            guard tab == .input else {
+                isVoiceComposerActive = false
+                return
+            }
             prepareVoiceInput()
         }
     }
@@ -76,9 +84,15 @@ struct MainView: View {
     private func startVoiceInput() {
         guard voiceStartTask == nil, !transcriber.state.isRecording else { return }
         shouldFinishVoiceAfterStart = false
+        shouldCancelVoiceAfterStart = false
         voiceStartTask = Task { @MainActor in
             await transcriber.start()
             voiceStartTask = nil
+            if shouldCancelVoiceAfterStart {
+                shouldCancelVoiceAfterStart = false
+                cancelVoiceInput()
+                return
+            }
             if shouldFinishVoiceAfterStart {
                 shouldFinishVoiceAfterStart = false
                 finishVoiceInput()
@@ -104,6 +118,19 @@ struct MainView: View {
         shouldFinishVoiceAfterStart = false
         transcriber.stop()
         submitConsumedTranscript()
+    }
+
+    private func cancelVoiceInput() {
+        shouldFinishVoiceAfterStart = false
+        if voiceStartTask != nil {
+            shouldCancelVoiceAfterStart = true
+            return
+        }
+        if transcriber.state.isRecording {
+            transcriber.stop()
+        }
+        _ = transcriber.consumeTranscript()
+        draftText = ""
     }
 
     private func submitConsumedTranscript() {

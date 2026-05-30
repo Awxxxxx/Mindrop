@@ -26,6 +26,7 @@ enum AIAnalysisAction: Equatable {
 
 final class AIService {
     private static let productionEndpoint = URL(string: "https://www.mindrop.chat/api/mindrop-ai")
+    private static let stagingEndpoint = URL(string: "https://staging.mindrop.chat/api/mindrop-ai")
 
     private let endpoint: URL?
     private let session: URLSession
@@ -57,7 +58,8 @@ final class AIService {
         context: [ChatMessage] = [],
         reminderCandidates: [ThoughtNote] = [],
         qaCandidates: [ThoughtNote] = [],
-        now: Date = .now
+        now: Date = .now,
+        thinkingEnabled: Bool = false
     ) async throws -> AIAnalysisResult {
         guard let endpoint else { throw AIServiceError.endpointNotConfigured }
 
@@ -72,7 +74,8 @@ final class AIService {
                 reminders: reminderCandidates.prefix(20).map { AIReminderCandidate(note: $0) },
                 qaNotes: qaCandidates.prefix(1).map { AINoteCandidate(note: $0) },
                 now: ISO8601DateFormatter.mindrop.string(from: now),
-                timeZone: TimeZone.current.identifier
+                timeZone: TimeZone.current.identifier,
+                thinkingEnabled: thinkingEnabled
             )
         )
 
@@ -152,7 +155,11 @@ final class AIService {
            !value.isEmpty {
             return url
         }
+#if DEBUG
+        return stagingEndpoint
+#else
         return productionEndpoint
+#endif
     }
 }
 
@@ -163,6 +170,7 @@ private struct AIAnalyzeRequest: Encodable {
     let qaNotes: [AINoteCandidate]
     let now: String
     let timeZone: String
+    let thinkingEnabled: Bool
 }
 
 private struct AIReminderNotificationRequest: Encodable {

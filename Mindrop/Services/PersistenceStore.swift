@@ -11,6 +11,7 @@ struct AppSnapshot: Codable {
     var hasPendingCloudChanges: Bool
     var profile: UserProfile
     var followsSystemAppearance: Bool
+    var aiThinkingMode: AIThinkingMode
 
     init(
         session: SessionState,
@@ -22,7 +23,8 @@ struct AppSnapshot: Codable {
         hasTrimmedChatHistory: Bool = false,
         hasPendingCloudChanges: Bool = false,
         profile: UserProfile,
-        followsSystemAppearance: Bool = true
+        followsSystemAppearance: Bool = true,
+        aiThinkingMode: AIThinkingMode = .fast
     ) {
         self.session = session
         self.notes = notes
@@ -34,6 +36,7 @@ struct AppSnapshot: Codable {
         self.hasPendingCloudChanges = hasPendingCloudChanges
         self.profile = profile
         self.followsSystemAppearance = followsSystemAppearance
+        self.aiThinkingMode = aiThinkingMode
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -47,6 +50,7 @@ struct AppSnapshot: Codable {
         case hasPendingCloudChanges
         case profile
         case followsSystemAppearance
+        case aiThinkingMode
     }
 
     init(from decoder: Decoder) throws {
@@ -61,6 +65,7 @@ struct AppSnapshot: Codable {
         hasPendingCloudChanges = try container.decodeIfPresent(Bool.self, forKey: .hasPendingCloudChanges) ?? false
         profile = try container.decode(UserProfile.self, forKey: .profile)
         followsSystemAppearance = try container.decodeIfPresent(Bool.self, forKey: .followsSystemAppearance) ?? true
+        aiThinkingMode = try container.decodeIfPresent(AIThinkingMode.self, forKey: .aiThinkingMode) ?? .fast
     }
 }
 
