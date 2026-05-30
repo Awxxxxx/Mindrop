@@ -195,6 +195,7 @@ img {
 }
 
 .download-entry > button,
+.download-direct,
 .primary,
 .secondary {
   display: inline-flex;
@@ -206,10 +207,15 @@ img {
   font-weight: 760;
 }
 
-.download-entry > button {
+.download-entry > button,
+.download-direct {
   padding: 0 18px;
   color: var(--paper);
   background: var(--dark);
+}
+
+.download-direct {
+  display: none;
 }
 
 .legal-top-link {
@@ -981,6 +987,18 @@ h3 {
 
   .brand span:last-child {
     display: none;
+  }
+
+  .download-entry > .download-trigger,
+  .download-entry .qr-popover {
+    display: none;
+  }
+
+  .download-entry > .download-direct {
+    display: inline-flex;
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
   }
 
   .legal-top-link {
