@@ -263,40 +263,17 @@ img {
   border-top: 1px solid rgba(255, 252, 244, 0.78);
 }
 
-.qr-placeholder {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 7px;
+.qr-code {
+  box-sizing: content-box;
+  display: block;
   width: 130px;
   height: 130px;
   margin: 0 auto 12px;
-  padding: 12px;
+  padding: 8px;
+  border: 1px solid rgba(31, 37, 39, 0.08);
   border-radius: 18px;
-  background: #f3ead9;
-}
-
-.qr-placeholder span,
-.qr-placeholder i {
-  border-radius: 4px;
-  background: var(--dark);
-}
-
-.qr-placeholder span:nth-child(1) {
-  grid-area: 1 / 1 / 3 / 3;
-}
-
-.qr-placeholder span:nth-child(2) {
-  grid-area: 1 / 4 / 3 / 6;
-}
-
-.qr-placeholder span:nth-child(3) {
-  grid-area: 4 / 1 / 6 / 3;
-}
-
-.qr-placeholder span:nth-child(4) {
-  grid-area: 4 / 4 / 6 / 6;
-  opacity: 0.26;
+  background: white;
+  box-shadow: 0 10px 24px rgba(31, 37, 39, 0.08);
 }
 
 .qr-popover strong,
