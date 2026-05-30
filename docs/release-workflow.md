@@ -18,9 +18,9 @@ Current thinking-mode test backend:
 
 - Preview branch: `feature/thinking-mode-toggle`
 - Preview alias: `https://mindrop-git-feature-thinking-mode-toggle-xxxs-projects-551c2398.vercel.app`
-- Desired custom staging domain: `https://staging.mindrop.chat`
+- Custom staging domain: `https://staging.mindrop.chat`
 
-To enable the custom staging domain, add this DNS record at the domain provider:
+The custom staging domain requires this DNS record at the domain provider:
 
 ```text
 A staging.mindrop.chat 76.76.21.21
