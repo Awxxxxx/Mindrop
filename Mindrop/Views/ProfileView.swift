@@ -610,11 +610,32 @@ private struct DonutChartView: View, Animatable {
 
     var body: some View {
         Canvas { context, size in
-            let total = values.reduce(0, +)
-            guard total > 0 else { return }
             let clampedProgress = min(max(progress, 0), 1)
             let rect = CGRect(origin: .zero, size: size)
             let radius = min(size.width, size.height) / 2
+            let innerInset: CGFloat = 30
+
+            let total = values.reduce(0, +)
+            guard total > 0 else {
+                if clampedProgress > 0 {
+                    var placeholderPath = Path()
+                    placeholderPath.addArc(
+                        center: CGPoint(x: rect.midX, y: rect.midY),
+                        radius: radius,
+                        startAngle: .degrees(-90),
+                        endAngle: .degrees(-90 + 360 * Double(clampedProgress)),
+                        clockwise: false
+                    )
+                    placeholderPath.addLine(to: CGPoint(x: rect.midX, y: rect.midY))
+                    placeholderPath.closeSubpath()
+                    context.fill(placeholderPath, with: .color(Color.controlSurface))
+                }
+                context.fill(Path(ellipseIn: rect.insetBy(dx: innerInset, dy: innerInset)), with: .color(.cardSurface))
+                return
+            }
+
+            context.fill(Path(ellipseIn: rect), with: .color(Color.controlSurface))
+
             var start = Angle.degrees(-90)
 
             for index in values.indices {
@@ -628,7 +649,7 @@ private struct DonutChartView: View, Animatable {
                 start += angle
             }
 
-            context.fill(Path(ellipseIn: rect.insetBy(dx: 30, dy: 30)), with: .color(.cardSurface))
+            context.fill(Path(ellipseIn: rect.insetBy(dx: innerInset, dy: innerInset)), with: .color(.cardSurface))
         }
     }
 }

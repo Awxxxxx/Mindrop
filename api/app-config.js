@@ -15,7 +15,7 @@ export default function handler(request, response) {
   response.status(200).json({
     appReviewURL: normalizeURL(process.env.MINDROP_APP_REVIEW_URL),
     features: {
-      aiThinkingModeToggle: environmentBoolean(process.env.FEATURE_AI_THINKING_MODE_TOGGLE, false),
+      aiThinkingModeToggle: environmentBoolean(process.env.FEATURE_AI_THINKING_MODE_TOGGLE, true),
     },
   });
 }

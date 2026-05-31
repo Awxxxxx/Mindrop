@@ -32,7 +32,7 @@ Remote flags are returned by `/api/app-config`.
 
 | Flag | Environment variable | Default | Purpose |
 | --- | --- | --- | --- |
-| `features.aiThinkingModeToggle` | `FEATURE_AI_THINKING_MODE_TOGGLE` | `false` | Shows the chat screen Fast/Thinking mode switch. |
+| `features.aiThinkingModeToggle` | `FEATURE_AI_THINKING_MODE_TOGGLE` | `true` | Shows the chat screen Fast/Thinking mode switch. |
 
 Client behavior should stay backward compatible:
 

@@ -88,11 +88,7 @@ final class AppStore: ObservableObject {
     }
 
     private static var defaultAIThinkingModeToggleAvailable: Bool {
-        #if DEBUG
         return true
-        #else
-        return false
-        #endif
     }
 
     var isLoggedIn: Bool {
