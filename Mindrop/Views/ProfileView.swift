@@ -1074,6 +1074,9 @@ private struct SettingsDocumentPage: View {
     let document: SettingsDocument
     @State private var isOpeningReviewPage = false
     private static let shareURL = URL(string: "https://apps.apple.com/cn/app/%E5%BF%B5%E8%90%BD%E7%AC%94%E8%AE%B0/id6772984960")!
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.1"
+    }
 
     var body: some View {
         ZStack {
@@ -1148,7 +1151,7 @@ private struct SettingsDocumentPage: View {
             .padding(.bottom, 10)
 
             SettingsListGroup {
-                SettingsInfoRow(title: "版本号", value: "1.0.0")
+                SettingsInfoRow(title: "版本号", value: appVersion)
                 Divider().padding(.leading, 20)
                 SettingsInfoRow(title: "开发者", value: "Ryan Xu")
                 Divider().padding(.leading, 20)
