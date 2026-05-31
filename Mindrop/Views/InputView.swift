@@ -634,6 +634,7 @@ private struct FloatingInputTrigger: View {
     @State private var isVoicePressed = false
     @State private var isCancelingVoice = false
     @State private var didStartVoice = false
+    @State private var lastVoiceCancelHapticAt = Date.distantPast
     @State private var holdWorkItem: DispatchWorkItem?
     @State private var voiceStartWorkItem: DispatchWorkItem?
 
@@ -871,7 +872,16 @@ private struct FloatingInputTrigger: View {
         let shouldCancel = location.y > voicePanelHeight * (2.0 / 3.0)
         guard shouldCancel != isCancelingVoice else { return }
         isCancelingVoice = shouldCancel
-        HapticFeedback.selectionChanged()
+        if shouldCancel {
+            playVoiceCancelHapticIfNeeded()
+        }
+    }
+
+    private func playVoiceCancelHapticIfNeeded() {
+        let now = Date()
+        guard now.timeIntervalSince(lastVoiceCancelHapticAt) > 0.45 else { return }
+        lastVoiceCancelHapticAt = now
+        HapticFeedback.voiceCancelImpact()
     }
 
     private func endTriggerPress(_ location: CGPoint?) {
@@ -909,6 +919,7 @@ private struct FloatingInputTrigger: View {
         guard !didStartVoice else { return }
         didStartVoice = true
         isCancelingVoice = false
+        lastVoiceCancelHapticAt = .distantPast
         isFocused = false
         isTextInputVisible = false
         withAnimation(.easeOut(duration: 0.24)) {

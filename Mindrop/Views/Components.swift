@@ -1,17 +1,25 @@
 import SwiftUI
 import UIKit
 
+@MainActor
 enum HapticFeedback {
+    private static let lightImpactGenerator = UIImpactFeedbackGenerator(style: .light)
+    private static let heavyImpactGenerator = UIImpactFeedbackGenerator(style: .heavy)
+    private static let selectionGenerator = UISelectionFeedbackGenerator()
+
     static func lightImpact() {
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.prepare()
-        generator.impactOccurred()
+        lightImpactGenerator.prepare()
+        lightImpactGenerator.impactOccurred()
+    }
+
+    static func voiceCancelImpact() {
+        heavyImpactGenerator.prepare()
+        heavyImpactGenerator.impactOccurred(intensity: 1.0)
     }
 
     static func selectionChanged() {
-        let generator = UISelectionFeedbackGenerator()
-        generator.prepare()
-        generator.selectionChanged()
+        selectionGenerator.prepare()
+        selectionGenerator.selectionChanged()
     }
 }
 
