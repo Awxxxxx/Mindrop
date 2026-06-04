@@ -31,7 +31,7 @@ final class RemoteConfigService {
     static let shared = RemoteConfigService()
 
     private static let productionEndpoint = URL(string: "https://www.mindrop.chat/api/app-config")
-    private static let stagingEndpoint = URL(string: "https://staging.mindrop.chat/api/app-config")
+    private static let developEndpoint = URL(string: "https://develop.mindrop.chat/api/app-config")
 
     private let endpoint: URL?
     private let session: URLSession
@@ -74,7 +74,7 @@ final class RemoteConfigService {
             return url
         }
 #if DEBUG
-        return stagingEndpoint
+        return developEndpoint
 #else
         return productionEndpoint
 #endif
