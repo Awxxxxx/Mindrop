@@ -74,25 +74,24 @@ enum PersistenceStore {
     private static let installationMarkerKey = "mindrop.installationMarker.v1"
 
     static func load() -> AppSnapshot? {
-        guard let data = UserDefaults.standard.data(forKey: snapshotKey) else { return nil }
+        guard let data = MindropSharedStorage.data(forKey: snapshotKey) else { return nil }
         return try? JSONDecoder().decode(AppSnapshot.self, from: data)
     }
 
     static func save(_ snapshot: AppSnapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        UserDefaults.standard.set(data, forKey: snapshotKey)
+        MindropSharedStorage.set(data, forKey: snapshotKey)
     }
 
     static func saveAndFlush(_ snapshot: AppSnapshot) {
         save(snapshot)
-        UserDefaults.standard.synchronize()
+        MindropSharedStorage.synchronize()
     }
 
     static func shouldResetKeychainForFreshInstall(hasExistingSnapshot: Bool) -> Bool {
-        let defaults = UserDefaults.standard
-        let hasInstallationMarker = defaults.bool(forKey: installationMarkerKey)
+        let hasInstallationMarker = MindropSharedStorage.bool(forKey: installationMarkerKey)
         if !hasInstallationMarker {
-            defaults.set(true, forKey: installationMarkerKey)
+            MindropSharedStorage.set(true, forKey: installationMarkerKey)
         }
         return !hasInstallationMarker && !hasExistingSnapshot
     }

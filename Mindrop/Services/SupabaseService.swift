@@ -184,6 +184,37 @@ final class SupabaseService {
         return refreshedSession
     }
 
+    static func isAuthenticationExpired(_ error: Error) -> Bool {
+        if let serviceError = error as? SupabaseServiceError {
+            switch serviceError {
+            case .missingSession:
+                return true
+            case .invalidConfiguration, .emailConfirmationRequired, .unexpectedResponse:
+                return false
+            case .serverMessage:
+                break
+            }
+        }
+
+        let message = ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            .lowercased()
+        let authFailureSignals = [
+            "invalid refresh token",
+            "refresh token not found",
+            "refresh token has expired",
+            "refresh token already used",
+            "invalid_grant",
+            "jwt expired",
+            "invalid jwt",
+            "session not found",
+            "user not found",
+            "user is disabled",
+            "invalid session",
+            "missing session"
+        ]
+        return authFailureSignals.contains { message.contains($0) }
+    }
+
     func signOut(_ session: SupabaseSession?) async {
         if let session {
             var request = try? makeRequest(path: "/auth/v1/logout", method: "POST", accessToken: session.accessToken)

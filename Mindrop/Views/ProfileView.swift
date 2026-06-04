@@ -680,6 +680,7 @@ private struct SettingsPageView: View {
     @State private var showProfileEditor = false
     @State private var showWelcomePage = false
     @State private var selectedDocument: SettingsDocument?
+    @State private var showQuickVoiceDiagnostics = false
     @State private var showDeleteAccountConfirmation = false
 
     var body: some View {
@@ -703,6 +704,10 @@ private struct SettingsPageView: View {
                             SettingsPageRow(title: "通知设置", action: onOpenNotificationSettings)
                             rowDivider
                             SettingsAppearanceToggleRow(isOn: $store.followsSystemAppearance)
+                            rowDivider
+                            SettingsPageRow(title: "侧键诊断") {
+                                showQuickVoiceDiagnostics = true
+                            }
                         }
 
                         SettingsListGroup {
@@ -747,7 +752,7 @@ private struct SettingsPageView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .enableNavigationSwipeBack()
-        .animateTabBarReturnWhenDisappearing(shouldAnimate: !showProfileEditor && !showWelcomePage && selectedDocument == nil)
+        .animateTabBarReturnWhenDisappearing(shouldAnimate: !showProfileEditor && !showWelcomePage && selectedDocument == nil && !showQuickVoiceDiagnostics)
         .navigationDestination(isPresented: $showProfileEditor) {
             ProfileEditorView(animateTabBarReturn: false)
         }
@@ -756,6 +761,9 @@ private struct SettingsPageView: View {
         }
         .navigationDestination(item: $selectedDocument) { document in
             SettingsDocumentPage(document: document)
+        }
+        .navigationDestination(isPresented: $showQuickVoiceDiagnostics) {
+            SettingsQuickVoiceDiagnosticPage()
         }
         .alert("确认注销账号？", isPresented: $showDeleteAccountConfirmation) {
             Button("取消", role: .cancel) {}
@@ -903,6 +911,133 @@ private struct SettingsShareRow: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+private struct SettingsQuickVoiceDiagnosticPage: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var entries: [MindropQuickVoiceDiagnosticEntry] = []
+
+    var body: some View {
+        ZStack {
+            Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SettingsDocumentBlock {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("测试步骤")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Color.mindInk)
+
+                                Text("先清空日志，然后到系统侧键设置里选择「侧键诊断」，锁屏和亮屏各长按一次。回到这里点刷新，看日志是否出现 perform、Live Activity、transcriber 三类记录。")
+                                    .font(.system(size: 15, weight: .regular))
+                                    .foregroundStyle(Color.mindInk.opacity(0.68))
+                                    .lineSpacing(4)
+                            }
+                        }
+
+                        SettingsListGroup {
+                            SettingsPageRow(title: "刷新日志", showsChevron: false) {
+                                refresh()
+                            }
+                            Divider().padding(.leading, 20)
+                            SettingsPageRow(title: "清空日志", titleColor: .red, showsChevron: false) {
+                                MindropQuickVoiceDiagnostics.clear()
+                                refresh()
+                            }
+                        }
+
+                        SettingsDocumentBlock {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("诊断日志")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Color.mindInk)
+
+                                if entries.isEmpty {
+                                    Text("暂无日志。清空后测试，如果这里仍然为空，说明系统没有调用到念落的 App Intent。")
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundStyle(Color.mindInk.opacity(0.58))
+                                        .lineSpacing(4)
+                                } else {
+                                    ForEach(entries.reversed()) { entry in
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text(Self.timestampFormatter.string(from: entry.timestamp))
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(Color.mindInk.opacity(0.44))
+                                            Text(entry.source)
+                                                .font(.caption2.weight(.medium))
+                                                .foregroundStyle(Color.mindAccent.opacity(0.72))
+                                            Text(entry.message)
+                                                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                                                .foregroundStyle(Color.mindInk.opacity(0.74))
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 8)
+
+                                        if entry.id != entries.first?.id {
+                                            Divider()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 12)
+                    .padding(.bottom, 28)
+                }
+            }
+        }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .enableNavigationSwipeBack()
+        .onAppear(perform: refresh)
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            refresh()
+        }
+    }
+
+    private var header: some View {
+        ZStack {
+            Text("侧键诊断")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.mindInk)
+
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(Color.mindInk)
+                        .frame(width: 52, height: 52)
+                        .background(Color.cardSurface, in: Circle())
+                        .shadow(color: .black.opacity(0.035), radius: 10, y: 5)
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+        }
+        .frame(height: 72)
+        .background(Color.cardSurface)
+        .overlay(Divider().opacity(0.55), alignment: .bottom)
+    }
+
+    private func refresh() {
+        entries = MindropQuickVoiceDiagnostics.entries()
+    }
+
+    private static let timestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm:ss.SSS"
+        return formatter
+    }()
 }
 
 private enum SettingsDocument: String, Identifiable {

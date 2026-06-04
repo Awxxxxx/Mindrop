@@ -40,6 +40,7 @@ final class AppStore: ObservableObject {
     private var deletedNotes: [ThoughtNote] = []
     private var deletedMessages: [ChatMessage] = []
     private var pushTokenObserver: NSObjectProtocol?
+    private var quickCaptureObserver: NSObjectProtocol?
     private var feishuPairingDraft: FeishuConfigurationDraft?
 
     init() {
@@ -77,6 +78,7 @@ final class AppStore: ObservableObject {
         isRestoring = false
         recycleExpiredReminders()
         observeRemotePushTokenUpdates()
+        observeQuickCaptureUpdates()
         persistIfReady(markCloudDirty: false)
 
         Task {
@@ -147,6 +149,44 @@ final class AppStore: ObservableObject {
     func flushPendingCloudChanges() {
         persistImmediately()
         scheduleCloudSync(delayMilliseconds: 0)
+    }
+
+    func reloadSharedSnapshotIfNeeded() {
+        guard let snapshot = PersistenceStore.load() else { return }
+        guard snapshot.notes != notes ||
+            snapshot.deletedNotes != deletedNotes ||
+            snapshot.messages != messages ||
+            snapshot.deletedMessages != deletedMessages ||
+            snapshot.profileStats != profileStats ||
+            snapshot.hasPendingCloudChanges != hasPendingCloudChanges ||
+            snapshot.hasTrimmedChatHistory != hasTrimmedChatHistory else {
+            return
+        }
+
+        let shouldScheduleCloudSync = snapshot.hasPendingCloudChanges
+        isApplyingRemoteSnapshot = true
+        session = snapshot.session
+        notes = snapshot.notes.filter { $0.deletedAt == nil }
+        deletedNotes = snapshot.deletedNotes + snapshot.notes.filter { $0.deletedAt != nil }
+        messages = snapshot.messages.filter { $0.deletedAt == nil }
+        deletedMessages = snapshot.deletedMessages + snapshot.messages.filter { $0.deletedAt != nil }
+        profileStats = snapshot.profileStats
+        hasTrimmedChatHistory = snapshot.hasTrimmedChatHistory
+        hasPendingCloudChanges = snapshot.hasPendingCloudChanges
+        profile = snapshot.profile
+        followsSystemAppearance = snapshot.followsSystemAppearance
+        aiThinkingMode = .fast
+        enforceChatHistoryLimit()
+        _ = enforceQANoteLimit()
+        isApplyingRemoteSnapshot = false
+
+        if shouldScheduleCloudSync {
+            scheduleCloudSync(delayMilliseconds: 0)
+        }
+
+        Task {
+            await rescheduleFutureReminders()
+        }
     }
 
     func login(account: String, password: String) async -> Bool {
@@ -922,6 +962,18 @@ final class AppStore: ObservableObject {
         }
     }
 
+    private func observeQuickCaptureUpdates() {
+        quickCaptureObserver = NotificationCenter.default.addObserver(
+            forName: .mindropQuickCaptureDidSave,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.reloadSharedSnapshotIfNeeded()
+            }
+        }
+    }
+
     private func replyWithFeishuPairingCode() async {
         guard session == .authenticated, currentSupabaseSession != nil else {
             appendChatMessage(ChatMessage(role: .assistant, text: "先登录 Mindrop，再对我说“飞书配对”。", category: nil))
@@ -1247,7 +1299,23 @@ final class AppStore: ObservableObject {
             }
 
             if authSession.needsRefresh {
-                authSession = try await supabaseService.refresh(authSession)
+                do {
+                    authSession = try await supabaseService.refresh(authSession)
+                } catch {
+                    if SupabaseService.isAuthenticationExpired(error) {
+                        throw error
+                    }
+                    currentSupabaseSession = authSession
+                    session = .authenticated
+                    selectedCategory = .todo
+                    print("Mindrop session refresh deferred: \(error.localizedDescription)")
+                    Task {
+                        try? await Task.sleep(for: .seconds(5))
+                        await refreshCloudDataFromServer()
+                        await refreshRemotePushRegistration()
+                    }
+                    return
+                }
             }
 
             isPreparingCloudSession = true
@@ -1262,10 +1330,14 @@ final class AppStore: ObservableObject {
             await registerForRemotePushIfPossible()
         } catch {
             currentSupabaseSession = nil
-            try? supabaseService.clearSession()
-            if session == .authenticated {
-                session = .welcome
-                showToast("登录已过期，请重新登录")
+            if SupabaseService.isAuthenticationExpired(error) {
+                try? supabaseService.clearSession()
+                if session == .authenticated {
+                    session = .welcome
+                    showToast("登录已过期，请重新登录")
+                }
+            } else {
+                print("Mindrop session restore failed without clearing login: \(error.localizedDescription)")
             }
         }
     }

@@ -87,7 +87,15 @@ final class AIService {
             throw AIServiceError.serverError(httpResponse.statusCode)
         }
 
+        return try decodeAnalyzeResponse(data, sourceText: text)
+    }
+
+    func decodeAnalyzeResponse(_ data: Data, sourceText: String) throws -> AIAnalysisResult {
         let payload = try decoder.decode(AIAnalyzeResponse.self, from: data)
+        return Self.makeAnalysisResult(from: payload, sourceText: sourceText)
+    }
+
+    private static func makeAnalysisResult(from payload: AIAnalyzeResponse, sourceText text: String) -> AIAnalysisResult {
         let category = payload.category.thoughtCategory
         let action: AIAnalysisAction
         let normalizedAction = payload.action?.replacingOccurrences(of: "_", with: "").lowercased()
@@ -144,7 +152,15 @@ final class AIService {
         )
     }
 
-    private static var defaultEndpoint: URL? {
+    static var quickVoiceRegisterTokenEndpoint: URL? {
+        quickVoiceEndpoint(path: "register-token")
+    }
+
+    static var quickVoiceCaptureEndpoint: URL? {
+        quickVoiceEndpoint(path: "capture")
+    }
+
+    static var defaultEndpoint: URL? {
         if let value = Bundle.main.object(forInfoDictionaryKey: "MindropAIEndpoint") as? String,
            let url = URL.mindropEndpoint(from: value),
            !value.isEmpty {
@@ -160,6 +176,20 @@ final class AIService {
 #else
         return productionEndpoint
 #endif
+    }
+
+    private static func quickVoiceEndpoint(path: String) -> URL? {
+        guard let defaultEndpoint,
+              var components = URLComponents(url: defaultEndpoint, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        if components.path.hasSuffix("/api/mindrop-ai") {
+            components.path = String(components.path.dropLast("/api/mindrop-ai".count)) + "/api/quick-voice/\(path)"
+        } else {
+            components.path = "/api/quick-voice/\(path)"
+        }
+        return components.url
     }
 }
 

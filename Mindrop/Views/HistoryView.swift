@@ -6,6 +6,7 @@ struct HistoryView: View {
     @State private var noteAnimationRunID = 0
     @State private var editingNote: ThoughtNote?
     @State private var isCreatingNote = false
+    @State private var hiddenSampleNoteIDs: Set<UUID> = []
     @State private var billSort: BillSortOption = .latest
     @State private var billTimeFilter: BillTimeFilter = .all
     @State private var billAmountFilter: BillAmountFilter = .all
@@ -22,6 +23,7 @@ struct HistoryView: View {
 
     private var visibleNotes: [ThoughtNote] {
         store.historyNotesForDisplay
+            .filter { !hiddenSampleNoteIDs.contains($0.id) }
             .filter { $0.category == store.selectedCategory }
             .filter(applyBillFilters)
             .sorted { lhs, rhs in
@@ -165,50 +167,39 @@ struct HistoryView: View {
 
     @ViewBuilder
     private func noteCard(note: ThoughtNote, index: Int) -> some View {
-        if store.isHistorySampleNote(note) {
-            AnimatedNoteCardView(
-                note: note,
-                index: index,
-                animationRunID: noteAnimationRunID,
-                shouldAnimateEntrance: index < Self.animatedEntranceLimit,
-                animatedNoteIDs: $animatedNoteIDs
-            )
-        } else {
-            SwipeableNoteCardView(
-                note: note,
-                index: index,
-                animationRunID: noteAnimationRunID,
-                shouldAnimateEntrance: index < Self.animatedEntranceLimit,
-                animatedNoteIDs: $animatedNoteIDs,
-                openSwipeNoteID: $openSwipeNoteID,
-                actions: swipeActions(for: note),
-                contextMenu: {
-                    contextActions(for: note)
-                },
-                onTap: {
-                    isCreatingNote = false
-                    editingNote = note
-                }
-            )
-            .background {
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: NoteRowFramePreferenceKey.self,
-                        value: [note.id: proxy.frame(in: .named(Self.viewCoordinateSpace))]
-                    )
-                }
+        let isSample = store.isHistorySampleNote(note)
+        SwipeableNoteCardView(
+            note: note,
+            index: index,
+            animationRunID: noteAnimationRunID,
+            shouldAnimateEntrance: index < Self.animatedEntranceLimit,
+            animatedNoteIDs: $animatedNoteIDs,
+            openSwipeNoteID: $openSwipeNoteID,
+            actions: swipeActions(for: note, isSample: isSample),
+            contextMenu: {
+                contextActions(for: note, isSample: isSample)
+            },
+            onTap: {
+                open(note, isSample: isSample)
             }
-            .zIndex(openSwipeNoteID == note.id ? 100 : 0)
+        )
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: NoteRowFramePreferenceKey.self,
+                    value: [note.id: proxy.frame(in: .named(Self.viewCoordinateSpace))]
+                )
+            }
         }
+        .zIndex(openSwipeNoteID == note.id ? 100 : 0)
     }
 
     @ViewBuilder
     private var globalSwipeActionHitOverlay: some View {
-        if !store.shouldShowHistorySampleNotes,
-           let openSwipeNoteID,
-           let note = store.notes.first(where: { $0.id == openSwipeNoteID }),
+        if let openSwipeNoteID,
+           let note = visibleNotes.first(where: { $0.id == openSwipeNoteID }),
            let frame = noteRowFrames[openSwipeNoteID] {
-            let actions = swipeActions(for: note)
+            let actions = swipeActions(for: note, isSample: store.isHistorySampleNote(note))
             let actionWidth: CGFloat = 76
             let revealWidth = CGFloat(actions.count) * actionWidth
 
@@ -413,67 +404,132 @@ struct HistoryView: View {
     }
 
     @ViewBuilder
-    private func contextActions(for note: ThoughtNote) -> some View {
+    private func contextActions(for note: ThoughtNote, isSample: Bool) -> some View {
         if note.category == .recycleBin {
-            Button("还原") { store.restore(note) }
-            Button("永久删除", role: .destructive) { store.deletePermanently(note) }
+            Button("还原") { restore(note, isSample: isSample) }
+            Button("永久删除", role: .destructive) { deletePermanently(note, isSample: isSample) }
         } else {
-            Button("删除", role: .destructive) { delete(note) }
+            Button("删除", role: .destructive) { delete(note, isSample: isSample) }
             Button("编辑") {
-                isCreatingNote = false
-                editingNote = note
+                open(note, isSample: isSample)
             }
-            Button(note.isPinned ? "取消置顶" : "置顶") { togglePin(note) }
+            Button(note.isPinned ? "取消置顶" : "置顶") { togglePin(note, isSample: isSample) }
             Menu("移动") {
                 ForEach(ThoughtCategory.allCases.filter { $0 != .recycleBin && $0 != note.category }) { category in
-                    Button(category.rawValue) { move(note, to: category) }
+                    Button(category.rawValue) { move(note, to: category, isSample: isSample) }
                 }
             }
         }
     }
 
-    private func swipeActions(for note: ThoughtNote) -> [NoteSwipeAction] {
+    private func swipeActions(for note: ThoughtNote, isSample: Bool) -> [NoteSwipeAction] {
         if note.category == .recycleBin {
             return [
                 NoteSwipeAction(title: "还原", systemName: "arrow.uturn.backward", tint: .orange) {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-                        store.restore(note)
-                    }
+                    restore(note, isSample: isSample)
                 },
                 NoteSwipeAction(title: "删除", systemName: "trash", tint: .red) {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-                        store.deletePermanently(note)
-                    }
+                    deletePermanently(note, isSample: isSample)
                 }
             ]
         } else {
             return [
                 NoteSwipeAction(title: note.isPinned ? "取消置顶" : "置顶", systemName: note.isPinned ? "pin.slash" : "pin", tint: .orange) {
-                    togglePin(note)
+                    togglePin(note, isSample: isSample)
                 },
                 NoteSwipeAction(title: "删除", systemName: "trash", tint: .red) {
-                    delete(note)
+                    delete(note, isSample: isSample)
                 }
             ]
         }
     }
 
-    private func delete(_ note: ThoughtNote) {
+    private func open(_ note: ThoughtNote, isSample: Bool) {
+        isCreatingNote = isSample
+        editingNote = isSample ? editableSampleCopy(of: note) : note
+    }
+
+    private func delete(_ note: ThoughtNote, isSample: Bool) {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            store.moveToRecycleBin(note)
+            if isSample {
+                hideSample(note)
+            } else {
+                store.moveToRecycleBin(note)
+            }
         }
     }
 
-    private func togglePin(_ note: ThoughtNote) {
+    private func togglePin(_ note: ThoughtNote, isSample: Bool) {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            store.pin(note)
+            if isSample {
+                saveSample(note, isPinned: !note.isPinned)
+            } else {
+                store.pin(note)
+            }
         }
     }
 
-    private func move(_ note: ThoughtNote, to category: ThoughtCategory) {
+    private func move(_ note: ThoughtNote, to category: ThoughtCategory, isSample: Bool) {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            store.move(note, to: category)
+            if isSample {
+                saveSample(note, category: category)
+            } else {
+                store.move(note, to: category)
+            }
         }
+    }
+
+    private func restore(_ note: ThoughtNote, isSample: Bool) {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            if isSample {
+                saveSample(note, category: restoredCategory(for: note))
+            } else {
+                store.restore(note)
+            }
+        }
+    }
+
+    private func deletePermanently(_ note: ThoughtNote, isSample: Bool) {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            if isSample {
+                hideSample(note)
+            } else {
+                store.deletePermanently(note)
+            }
+        }
+    }
+
+    private func hideSample(_ note: ThoughtNote) {
+        openSwipeNoteID = nil
+        hiddenSampleNoteIDs.insert(note.id)
+    }
+
+    private func saveSample(_ note: ThoughtNote, category: ThoughtCategory? = nil, isPinned: Bool? = nil) {
+        openSwipeNoteID = nil
+        store.createManualNote(editableSampleCopy(of: note, category: category, isPinned: isPinned))
+    }
+
+    private func editableSampleCopy(
+        of note: ThoughtNote,
+        category: ThoughtCategory? = nil,
+        isPinned: Bool? = nil
+    ) -> ThoughtNote {
+        let targetCategory = category ?? (note.category == .recycleBin ? restoredCategory(for: note) : note.category)
+        return ThoughtNote(
+            title: note.title,
+            content: note.content,
+            category: targetCategory,
+            createdAt: .now,
+            reminderAt: targetCategory == .todo ? note.reminderAt : nil,
+            expenseAmount: targetCategory == .bill ? note.expenseAmount : nil,
+            expenseCategory: targetCategory == .bill ? note.expenseCategory : nil,
+            isPinned: isPinned ?? note.isPinned
+        )
+    }
+
+    private func restoredCategory(for note: ThoughtNote) -> ThoughtCategory {
+        let category = note.categoryBeforeRecycle ?? .idea
+        return category == .recycleBin ? .idea : category
     }
 
     private func resetBillFilters() {

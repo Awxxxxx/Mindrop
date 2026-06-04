@@ -7,53 +7,110 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		065510D5A4B868496DB42695 /* SpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000115 /* SpeechTranscriber.swift */; };
+		0B348C05745435BE34ED3E6C /* MindropQuickVoiceIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2370DC2E330CD864BEB0CCAF /* MindropQuickVoiceIntents.swift */; };
+		126DF0B86FD3CA47F2C78B2B /* MindropQuickThoughtProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F7517461D898BBE3D856B2 /* MindropQuickThoughtProcessor.swift */; };
 		1A0000010000000000000001 /* MindropApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000101 /* MindropApp.swift */; };
-		1A0000010000000000000002 /* Models/MindModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000102 /* Models/MindModels.swift */; };
-		1A0000010000000000000003 /* Services/AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000103 /* Services/AppStore.swift */; };
-		1A0000010000000000000004 /* Views/RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000104 /* Views/RootView.swift */; };
-		1A0000010000000000000005 /* Views/WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000105 /* Views/WelcomeView.swift */; };
-		1A0000010000000000000006 /* Views/MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000106 /* Views/MainView.swift */; };
-		1A0000010000000000000007 /* Views/Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000107 /* Views/Components.swift */; };
-		1A0000010000000000000008 /* Views/HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000108 /* Views/HistoryView.swift */; };
-		1A0000010000000000000009 /* Views/InputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000109 /* Views/InputView.swift */; };
-		1A0000010000000000000010 /* Views/ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000110 /* Views/ProfileView.swift */; };
+		1A0000010000000000000002 /* MindModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000102 /* MindModels.swift */; };
+		1A0000010000000000000003 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000103 /* AppStore.swift */; };
+		1A0000010000000000000004 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000104 /* RootView.swift */; };
+		1A0000010000000000000005 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000105 /* WelcomeView.swift */; };
+		1A0000010000000000000006 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000106 /* MainView.swift */; };
+		1A0000010000000000000007 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000107 /* Components.swift */; };
+		1A0000010000000000000008 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000108 /* HistoryView.swift */; };
+		1A0000010000000000000009 /* InputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000109 /* InputView.swift */; };
+		1A0000010000000000000010 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000110 /* ProfileView.swift */; };
 		1A0000010000000000000011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000111 /* Assets.xcassets */; };
-		1A0000010000000000000012 /* Services/PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000113 /* Services/PersistenceStore.swift */; };
-		1A0000010000000000000013 /* Services/NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000114 /* Services/NotificationScheduler.swift */; };
-		1A0000010000000000000014 /* Services/SpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000115 /* Services/SpeechTranscriber.swift */; };
+		1A0000010000000000000012 /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000113 /* PersistenceStore.swift */; };
+		1A0000010000000000000013 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000114 /* NotificationScheduler.swift */; };
+		1A0000010000000000000014 /* SpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000115 /* SpeechTranscriber.swift */; };
 		1A0000010000000000000015 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000116 /* LaunchScreen.storyboard */; };
 		1A0000010000000000000016 /* LaunchLogo.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000117 /* LaunchLogo.png */; };
-		1A0000010000000000000017 /* Services/AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000118 /* Services/AIService.swift */; };
-		1A0000010000000000000018 /* Services/SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000119 /* Services/SupabaseService.swift */; };
+		1A0000010000000000000017 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000118 /* AIService.swift */; };
+		1A0000010000000000000018 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000119 /* SupabaseService.swift */; };
 		1A0000010000000000000019 /* LaunchBrandIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000120 /* LaunchBrandIcon.png */; };
-		1A0000010000000000000020 /* Services/PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000121 /* Services/PushNotificationService.swift */; };
-		1A0000010000000000000021 /* Services/RemoteConfigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000123 /* Services/RemoteConfigService.swift */; };
+		1A0000010000000000000020 /* PushNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000121 /* PushNotificationService.swift */; };
+		1A0000010000000000000021 /* RemoteConfigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000123 /* RemoteConfigService.swift */; };
+		2F638CEA71756646F8B435A3 /* MindropQuickVoiceActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868E7357C5AFCDBFCB2F7FEA /* MindropQuickVoiceActivity.swift */; };
+		42470BBC5FECC0DA9AC1525E /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000113 /* PersistenceStore.swift */; };
+		57BE3A6C490FA5C683620DB0 /* MindropVoiceWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C380741363DA26AB52E4573C /* MindropVoiceWidget.swift */; };
+		594D8161103212947203B18B /* MindropQuickVoiceCaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CEFA5FA2D29882C24AB7A26 /* MindropQuickVoiceCaptureController.swift */; };
+		606999C84F42EC9219BC5ADA /* MindropQuickVoiceDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF294320E33ABD0A2E710DC /* MindropQuickVoiceDiagnostics.swift */; };
+		7508D8D95505D3BD15A12AF7 /* MindropQuickVoiceCaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CEFA5FA2D29882C24AB7A26 /* MindropQuickVoiceCaptureController.swift */; };
+		7786B1861782914C62E4CCBE /* MindropAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D677E45CC762E6BE1AD92350 /* MindropAppGroup.swift */; };
+		7845C3A39A8D4FB69DA8C102 /* MindropQuickVoiceRemoteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC49E8D7CCF4B85904D9F11 /* MindropQuickVoiceRemoteService.swift */; };
+		98EC538318505B47782AB96B /* MindropQuickVoiceActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868E7357C5AFCDBFCB2F7FEA /* MindropQuickVoiceActivity.swift */; };
+		A7218E07444D67BA70094A61 /* MindropQuickThoughtProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76F7517461D898BBE3D856B2 /* MindropQuickThoughtProcessor.swift */; };
+		AB843C2B1135BC9EF3F8034C /* MindropQuickVoiceDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF294320E33ABD0A2E710DC /* MindropQuickVoiceDiagnostics.swift */; };
+		B32D5C595DC9802AF2650059 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000118 /* AIService.swift */; };
+		CF1C33059B06E68EC36D6F01 /* MindModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000102 /* MindModels.swift */; };
+		D0AD34D7AC680F33013B691F /* MindropQuickVoiceIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2370DC2E330CD864BEB0CCAF /* MindropQuickVoiceIntents.swift */; };
+		D2A459B576B3F3192F252E6B /* MindropVoiceWidget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 851B5786BEEE3AC2073415E0 /* MindropVoiceWidget.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		E4088E26736A2D4FFE5A312A /* MindropAppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = D677E45CC762E6BE1AD92350 /* MindropAppGroup.swift */; };
+		E80561445C2AEB016FA8D5E2 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F760A209F6481C9734D03B74 /* Foundation.framework */; };
+		E8433107207274CCF15B8C3F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000010000000000000111 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D5E0096E98CCA32D03BD1137 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1A0000010000000000000402 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B31D8C27806BBE2D8C7274FE;
+			remoteInfo = MindropVoiceWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B799F0893BF7DE48B965565B /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D2A459B576B3F3192F252E6B /* MindropVoiceWidget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		1A0000010000000000000101 /* MindropApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindropApp.swift; sourceTree = "<group>"; };
-		1A0000010000000000000102 /* Models/MindModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/MindModels.swift; sourceTree = "<group>"; };
-		1A0000010000000000000103 /* Services/AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppStore.swift; sourceTree = "<group>"; };
-		1A0000010000000000000104 /* Views/RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/RootView.swift; sourceTree = "<group>"; };
-		1A0000010000000000000105 /* Views/WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/WelcomeView.swift; sourceTree = "<group>"; };
-		1A0000010000000000000106 /* Views/MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MainView.swift; sourceTree = "<group>"; };
-		1A0000010000000000000107 /* Views/Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components.swift; sourceTree = "<group>"; };
-		1A0000010000000000000108 /* Views/HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/HistoryView.swift; sourceTree = "<group>"; };
-		1A0000010000000000000109 /* Views/InputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/InputView.swift; sourceTree = "<group>"; };
-		1A0000010000000000000110 /* Views/ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ProfileView.swift; sourceTree = "<group>"; };
+		1A0000010000000000000102 /* MindModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/MindModels.swift; sourceTree = "<group>"; };
+		1A0000010000000000000103 /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppStore.swift; sourceTree = "<group>"; };
+		1A0000010000000000000104 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/RootView.swift; sourceTree = "<group>"; };
+		1A0000010000000000000105 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/WelcomeView.swift; sourceTree = "<group>"; };
+		1A0000010000000000000106 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MainView.swift; sourceTree = "<group>"; };
+		1A0000010000000000000107 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/Components.swift; sourceTree = "<group>"; };
+		1A0000010000000000000108 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/HistoryView.swift; sourceTree = "<group>"; };
+		1A0000010000000000000109 /* InputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/InputView.swift; sourceTree = "<group>"; };
+		1A0000010000000000000110 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ProfileView.swift; sourceTree = "<group>"; };
 		1A0000010000000000000111 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A0000010000000000000112 /* Mindrop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mindrop.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1A0000010000000000000113 /* Services/PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/PersistenceStore.swift; sourceTree = "<group>"; };
-		1A0000010000000000000114 /* Services/NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NotificationScheduler.swift; sourceTree = "<group>"; };
-		1A0000010000000000000115 /* Services/SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SpeechTranscriber.swift; sourceTree = "<group>"; };
+		1A0000010000000000000113 /* PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/PersistenceStore.swift; sourceTree = "<group>"; };
+		1A0000010000000000000114 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NotificationScheduler.swift; sourceTree = "<group>"; };
+		1A0000010000000000000115 /* SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SpeechTranscriber.swift; sourceTree = "<group>"; };
 		1A0000010000000000000116 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		1A0000010000000000000117 /* LaunchLogo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = LaunchLogo.png; sourceTree = "<group>"; };
-		1A0000010000000000000118 /* Services/AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AIService.swift; sourceTree = "<group>"; };
-		1A0000010000000000000119 /* Services/SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SupabaseService.swift; sourceTree = "<group>"; };
+		1A0000010000000000000118 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AIService.swift; sourceTree = "<group>"; };
+		1A0000010000000000000119 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SupabaseService.swift; sourceTree = "<group>"; };
 		1A0000010000000000000120 /* LaunchBrandIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = LaunchBrandIcon.png; sourceTree = "<group>"; };
-		1A0000010000000000000121 /* Services/PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/PushNotificationService.swift; sourceTree = "<group>"; };
+		1A0000010000000000000121 /* PushNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/PushNotificationService.swift; sourceTree = "<group>"; };
 		1A0000010000000000000122 /* Mindrop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Mindrop.entitlements; sourceTree = "<group>"; };
-		1A0000010000000000000123 /* Services/RemoteConfigService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/RemoteConfigService.swift; sourceTree = "<group>"; };
+		1A0000010000000000000123 /* RemoteConfigService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/RemoteConfigService.swift; sourceTree = "<group>"; };
+		2370DC2E330CD864BEB0CCAF /* MindropQuickVoiceIntents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropQuickVoiceIntents.swift; path = Intents/MindropQuickVoiceIntents.swift; sourceTree = "<group>"; };
+		2BC49E8D7CCF4B85904D9F11 /* MindropQuickVoiceRemoteService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropQuickVoiceRemoteService.swift; path = Services/MindropQuickVoiceRemoteService.swift; sourceTree = "<group>"; };
+		5BF294320E33ABD0A2E710DC /* MindropQuickVoiceDiagnostics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropQuickVoiceDiagnostics.swift; path = Shared/MindropQuickVoiceDiagnostics.swift; sourceTree = "<group>"; };
+		76F7517461D898BBE3D856B2 /* MindropQuickThoughtProcessor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropQuickThoughtProcessor.swift; path = Services/MindropQuickThoughtProcessor.swift; sourceTree = "<group>"; };
+		851B5786BEEE3AC2073415E0 /* MindropVoiceWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MindropVoiceWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		868E7357C5AFCDBFCB2F7FEA /* MindropQuickVoiceActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropQuickVoiceActivity.swift; path = Models/MindropQuickVoiceActivity.swift; sourceTree = "<group>"; };
+		9CEFA5FA2D29882C24AB7A26 /* MindropQuickVoiceCaptureController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropQuickVoiceCaptureController.swift; path = Services/MindropQuickVoiceCaptureController.swift; sourceTree = "<group>"; };
+		A99DBA7BD6FEF56C59AA287C /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ABFAD5C4702B4398A3315934 /* MindropVoiceWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = MindropVoiceWidget.entitlements; sourceTree = "<group>"; };
+		C380741363DA26AB52E4573C /* MindropVoiceWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MindropVoiceWidget.swift; sourceTree = "<group>"; };
+		D677E45CC762E6BE1AD92350 /* MindropAppGroup.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MindropAppGroup.swift; path = Shared/MindropAppGroup.swift; sourceTree = "<group>"; };
+		F760A209F6481C9734D03B74 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -61,6 +118,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3093C46BDDFE79A23A999F34 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E80561445C2AEB016FA8D5E2 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,6 +137,8 @@
 			children = (
 				1A0000010000000000000302 /* Mindrop */,
 				1A0000010000000000000303 /* Products */,
+				B3308F89568454A49E9BD3CF /* MindropVoiceWidget */,
+				A3EFD322F92B4CF15493C309 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -79,27 +146,34 @@
 			isa = PBXGroup;
 			children = (
 				1A0000010000000000000101 /* MindropApp.swift */,
-				1A0000010000000000000102 /* Models/MindModels.swift */,
-				1A0000010000000000000103 /* Services/AppStore.swift */,
-				1A0000010000000000000113 /* Services/PersistenceStore.swift */,
-				1A0000010000000000000114 /* Services/NotificationScheduler.swift */,
-				1A0000010000000000000115 /* Services/SpeechTranscriber.swift */,
-				1A0000010000000000000118 /* Services/AIService.swift */,
-				1A0000010000000000000119 /* Services/SupabaseService.swift */,
-				1A0000010000000000000121 /* Services/PushNotificationService.swift */,
-				1A0000010000000000000123 /* Services/RemoteConfigService.swift */,
-				1A0000010000000000000104 /* Views/RootView.swift */,
-				1A0000010000000000000105 /* Views/WelcomeView.swift */,
-				1A0000010000000000000106 /* Views/MainView.swift */,
-				1A0000010000000000000107 /* Views/Components.swift */,
-				1A0000010000000000000108 /* Views/HistoryView.swift */,
-				1A0000010000000000000109 /* Views/InputView.swift */,
-				1A0000010000000000000110 /* Views/ProfileView.swift */,
+				1A0000010000000000000102 /* MindModels.swift */,
+				1A0000010000000000000103 /* AppStore.swift */,
+				1A0000010000000000000113 /* PersistenceStore.swift */,
+				1A0000010000000000000114 /* NotificationScheduler.swift */,
+				1A0000010000000000000115 /* SpeechTranscriber.swift */,
+				1A0000010000000000000118 /* AIService.swift */,
+				1A0000010000000000000119 /* SupabaseService.swift */,
+				1A0000010000000000000121 /* PushNotificationService.swift */,
+				1A0000010000000000000123 /* RemoteConfigService.swift */,
+				1A0000010000000000000104 /* RootView.swift */,
+				1A0000010000000000000105 /* WelcomeView.swift */,
+				1A0000010000000000000106 /* MainView.swift */,
+				1A0000010000000000000107 /* Components.swift */,
+				1A0000010000000000000108 /* HistoryView.swift */,
+				1A0000010000000000000109 /* InputView.swift */,
+				1A0000010000000000000110 /* ProfileView.swift */,
 				1A0000010000000000000111 /* Assets.xcassets */,
 				1A0000010000000000000116 /* LaunchScreen.storyboard */,
 				1A0000010000000000000117 /* LaunchLogo.png */,
 				1A0000010000000000000120 /* LaunchBrandIcon.png */,
 				1A0000010000000000000122 /* Mindrop.entitlements */,
+				D677E45CC762E6BE1AD92350 /* MindropAppGroup.swift */,
+				868E7357C5AFCDBFCB2F7FEA /* MindropQuickVoiceActivity.swift */,
+				76F7517461D898BBE3D856B2 /* MindropQuickThoughtProcessor.swift */,
+				9CEFA5FA2D29882C24AB7A26 /* MindropQuickVoiceCaptureController.swift */,
+				2BC49E8D7CCF4B85904D9F11 /* MindropQuickVoiceRemoteService.swift */,
+				2370DC2E330CD864BEB0CCAF /* MindropQuickVoiceIntents.swift */,
+				5BF294320E33ABD0A2E710DC /* MindropQuickVoiceDiagnostics.swift */,
 			);
 			path = Mindrop;
 			sourceTree = "<group>";
@@ -108,8 +182,35 @@
 			isa = PBXGroup;
 			children = (
 				1A0000010000000000000112 /* Mindrop.app */,
+				851B5786BEEE3AC2073415E0 /* MindropVoiceWidget.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		68F22E7E79F5C586FD7F8A19 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				F760A209F6481C9734D03B74 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		A3EFD322F92B4CF15493C309 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				68F22E7E79F5C586FD7F8A19 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		B3308F89568454A49E9BD3CF /* MindropVoiceWidget */ = {
+			isa = PBXGroup;
+			children = (
+				C380741363DA26AB52E4573C /* MindropVoiceWidget.swift */,
+				A99DBA7BD6FEF56C59AA287C /* Info.plist */,
+				ABFAD5C4702B4398A3315934 /* MindropVoiceWidget.entitlements */,
+			);
+			path = MindropVoiceWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -122,15 +223,34 @@
 				1A0000010000000000000202 /* Sources */,
 				1A0000010000000000000201 /* Frameworks */,
 				1A0000010000000000000203 /* Resources */,
+				B799F0893BF7DE48B965565B /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				2032C6D110F6466A0484DB84 /* PBXTargetDependency */,
 			);
 			name = Mindrop;
 			productName = Mindrop;
 			productReference = 1A0000010000000000000112 /* Mindrop.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B31D8C27806BBE2D8C7274FE /* MindropVoiceWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 215BF2A62CB329272530D39E /* Build configuration list for PBXNativeTarget "MindropVoiceWidget" */;
+			buildPhases = (
+				E013C25319312CAB6B4955F6 /* Sources */,
+				3093C46BDDFE79A23A999F34 /* Frameworks */,
+				2D1DBF751A4A04CB7E478239 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MindropVoiceWidget;
+			productName = MindropVoiceWidget;
+			productReference = 851B5786BEEE3AC2073415E0 /* MindropVoiceWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -162,6 +282,7 @@
 			projectRoot = "";
 			targets = (
 				1A0000010000000000000401 /* Mindrop */,
+				B31D8C27806BBE2D8C7274FE /* MindropVoiceWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -178,6 +299,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2D1DBF751A4A04CB7E478239 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E8433107207274CCF15B8C3F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -186,28 +315,122 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A0000010000000000000001 /* MindropApp.swift in Sources */,
-				1A0000010000000000000002 /* Models/MindModels.swift in Sources */,
-				1A0000010000000000000003 /* Services/AppStore.swift in Sources */,
-				1A0000010000000000000004 /* Views/RootView.swift in Sources */,
-				1A0000010000000000000005 /* Views/WelcomeView.swift in Sources */,
-				1A0000010000000000000006 /* Views/MainView.swift in Sources */,
-				1A0000010000000000000007 /* Views/Components.swift in Sources */,
-				1A0000010000000000000008 /* Views/HistoryView.swift in Sources */,
-				1A0000010000000000000009 /* Views/InputView.swift in Sources */,
-				1A0000010000000000000010 /* Views/ProfileView.swift in Sources */,
-				1A0000010000000000000012 /* Services/PersistenceStore.swift in Sources */,
-				1A0000010000000000000013 /* Services/NotificationScheduler.swift in Sources */,
-				1A0000010000000000000014 /* Services/SpeechTranscriber.swift in Sources */,
-				1A0000010000000000000017 /* Services/AIService.swift in Sources */,
-				1A0000010000000000000018 /* Services/SupabaseService.swift in Sources */,
-				1A0000010000000000000020 /* Services/PushNotificationService.swift in Sources */,
-				1A0000010000000000000021 /* Services/RemoteConfigService.swift in Sources */,
+				1A0000010000000000000002 /* MindModels.swift in Sources */,
+				1A0000010000000000000003 /* AppStore.swift in Sources */,
+				1A0000010000000000000004 /* RootView.swift in Sources */,
+				1A0000010000000000000005 /* WelcomeView.swift in Sources */,
+				1A0000010000000000000006 /* MainView.swift in Sources */,
+				1A0000010000000000000007 /* Components.swift in Sources */,
+				1A0000010000000000000008 /* HistoryView.swift in Sources */,
+				1A0000010000000000000009 /* InputView.swift in Sources */,
+				1A0000010000000000000010 /* ProfileView.swift in Sources */,
+				1A0000010000000000000012 /* PersistenceStore.swift in Sources */,
+				1A0000010000000000000013 /* NotificationScheduler.swift in Sources */,
+				1A0000010000000000000014 /* SpeechTranscriber.swift in Sources */,
+				1A0000010000000000000017 /* AIService.swift in Sources */,
+				1A0000010000000000000018 /* SupabaseService.swift in Sources */,
+				1A0000010000000000000020 /* PushNotificationService.swift in Sources */,
+				1A0000010000000000000021 /* RemoteConfigService.swift in Sources */,
+				E4088E26736A2D4FFE5A312A /* MindropAppGroup.swift in Sources */,
+				98EC538318505B47782AB96B /* MindropQuickVoiceActivity.swift in Sources */,
+				A7218E07444D67BA70094A61 /* MindropQuickThoughtProcessor.swift in Sources */,
+				594D8161103212947203B18B /* MindropQuickVoiceCaptureController.swift in Sources */,
+				7845C3A39A8D4FB69DA8C102 /* MindropQuickVoiceRemoteService.swift in Sources */,
+				D0AD34D7AC680F33013B691F /* MindropQuickVoiceIntents.swift in Sources */,
+				AB843C2B1135BC9EF3F8034C /* MindropQuickVoiceDiagnostics.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E013C25319312CAB6B4955F6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57BE3A6C490FA5C683620DB0 /* MindropVoiceWidget.swift in Sources */,
+				2F638CEA71756646F8B435A3 /* MindropQuickVoiceActivity.swift in Sources */,
+				0B348C05745435BE34ED3E6C /* MindropQuickVoiceIntents.swift in Sources */,
+				CF1C33059B06E68EC36D6F01 /* MindModels.swift in Sources */,
+				7786B1861782914C62E4CCBE /* MindropAppGroup.swift in Sources */,
+				42470BBC5FECC0DA9AC1525E /* PersistenceStore.swift in Sources */,
+				B32D5C595DC9802AF2650059 /* AIService.swift in Sources */,
+				065510D5A4B868496DB42695 /* SpeechTranscriber.swift in Sources */,
+				126DF0B86FD3CA47F2C78B2B /* MindropQuickThoughtProcessor.swift in Sources */,
+				7508D8D95505D3BD15A12AF7 /* MindropQuickVoiceCaptureController.swift in Sources */,
+				606999C84F42EC9219BC5ADA /* MindropQuickVoiceDiagnostics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		2032C6D110F6466A0484DB84 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MindropVoiceWidget;
+			target = B31D8C27806BBE2D8C7274FE /* MindropVoiceWidget */;
+			targetProxy = D5E0096E98CCA32D03BD1137 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		1220CE2BA9D58040DA4D1E1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = MindropVoiceWidget/MindropVoiceWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = WR7885F6JL;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MindropVoiceWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "念落笔记";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.mindrop.ios.MindropVoiceWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG MINDROP_WIDGET_EXTENSION";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		19522EF0CA59EEF336848CA7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = MindropVoiceWidget/MindropVoiceWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = WR7885F6JL;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MindropVoiceWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "念落笔记";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.mindrop.ios.MindropVoiceWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = MINDROP_WIDGET_EXTENSION;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		1A0000010000000000000601 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -329,7 +552,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = Mindrop/Mindrop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = WR7885F6JL;
 				ENABLE_PREVIEWS = YES;
@@ -340,13 +563,14 @@
 				INFOPLIST_KEY_MindropRemoteConfigEndpoint = "$(MINDROP_REMOTE_CONFIG_ENDPOINT)";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于按住说话记录你的想法。";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "用于设置个人头像。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "用于把语音念头转写为文字。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "用于把语音想法转写为文字。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.1.0;
 				MINDROP_AI_ENDPOINT = "https://develop.mindrop.chat/api/mindrop-ai";
 				MINDROP_REMOTE_CONFIG_ENDPOINT = "https://develop.mindrop.chat/api/app-config";
 				PRODUCT_BUNDLE_IDENTIFIER = app.mindrop.ios;
@@ -369,7 +593,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = Mindrop/Mindrop.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = WR7885F6JL;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -379,13 +603,14 @@
 				INFOPLIST_KEY_MindropRemoteConfigEndpoint = "$(MINDROP_REMOTE_CONFIG_ENDPOINT)";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "用于按住说话记录你的想法。";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "用于设置个人头像。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "用于把语音念头转写为文字。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "用于把语音想法转写为文字。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.1.0;
 				MINDROP_AI_ENDPOINT = "https://www.mindrop.chat/api/mindrop-ai";
 				MINDROP_REMOTE_CONFIG_ENDPOINT = "https://www.mindrop.chat/api/app-config";
 				PRODUCT_BUNDLE_IDENTIFIER = app.mindrop.ios;
@@ -417,6 +642,15 @@
 			buildConfigurations = (
 				1A0000010000000000000603 /* Debug */,
 				1A0000010000000000000604 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		215BF2A62CB329272530D39E /* Build configuration list for PBXNativeTarget "MindropVoiceWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				19522EF0CA59EEF336848CA7 /* Release */,
+				1220CE2BA9D58040DA4D1E1F /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
